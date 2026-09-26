@@ -136,7 +136,54 @@ function parseJsonLoose(text){
   if (m) text = m[1];
   var start = text.search(/[\\[{]/);
   if (start === -1) throw new Error("no JSON found in AI response");
-  return JSON.parse(text.slice(start));
+  text = text.slice(start);
+  // Object-shaped replies (handleSpokenWord's single clarification, aiWordFitsContext's
+  // fits-or-not check, extractImageText's transcription) are always small and either come
+  // back whole or don't -- keep the simple strict parse for those, unchanged.
+  if (text[0] !== '[') return JSON.parse(text);
+  // Array-shaped replies (runAIPass's full paragraph pass) are the ones long enough to run
+  // into maxTokens and come back truncated mid-item, or to have one malformed item somewhere
+  // in the middle. Try the fast, common-case parse first...
+  try { return JSON.parse(text); } catch(e){ /* fall through to incremental recovery below */ }
+  // ...and if that fails, walk the text by hand and pull out each balanced {...} object one
+  // at a time, so a single bad or truncated item doesn't throw away every other item that
+  // parsed fine. This still returns a real Array (so the existing Array.isArray(result) shape
+  // check every caller relies on keeps working) -- it just also carries two extra properties
+  // marking that recovery happened, for callers that want to say so.
+  var items = [];
+  var skipped = 0;
+  var i = 1; // past the leading '['
+  var n = text.length;
+  while (i < n){
+    while (i < n && text[i] !== '{' && text[i] !== ']') i++;
+    if (i >= n || text[i] === ']') break;
+    var objStart = i, depth = 0, inStr = false, esc = false, objEnd = -1;
+    for (; i < n; i++){
+      var ch = text[i];
+      if (inStr){
+        if (esc) esc = false;
+        else if (ch === '\\\\') esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"'){ inStr = true; continue; }
+      if (ch === '{') depth++;
+      else if (ch === '}'){
+        depth--;
+        if (depth === 0){ objEnd = i; i++; break; }
+      }
+    }
+    if (objEnd === -1){ skipped++; break; } // ran off the end mid-object -- a truncated tail
+    var frag = text.slice(objStart, objEnd+1);
+    try {
+      var obj = JSON.parse(frag);
+      if (obj && typeof obj.original === 'string' && typeof obj.suggestion === 'string') items.push(obj);
+      else skipped++;
+    } catch(e2){ skipped++; }
+  }
+  items.partial = true;
+  items.skippedCount = skipped;
+  return items;
 }
 async function callAI(prompt, model, maxTokens, image){
   if (sessionBudgetLeft() <= 0){

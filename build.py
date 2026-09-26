@@ -711,13 +711,37 @@ function localCheck(text){
 
 /* ---------------- LLM pass ---------------- */
 function buildPrompt(text, localFlags){
-  var hints = localFlags.map(function(f){ return f.original; }).slice(0,40);
+  // Each hint carries what the free local spellchecker already guessed, and how sure it is --
+  // not just the bare word. The local checker can't read the sentence, so its guess is often
+  // wrong for exactly the mistakes that matter most here (a real word used in the wrong context,
+  // like "liyt" -> "lit" instead of "late"); telling the model what that guess was, and that it
+  // may well be wrong, lets it correct a bad local guess instead of independently reinventing
+  // one -- or just as usefully, confirm a good one instead of leaving it un-vetted.
+  var hints = localFlags.map(function(f){
+    return { word: f.original, localGuess: f.suggestion || null, confidence: f.confidence || 'medium' };
+  }).slice(0,40);
   return "You are a patient, encouraging writing tutor for a child with dyslexia. " +
     "Find genuine spelling, grammar, punctuation and word-choice mistakes in the paragraph below — " +
     "especially “real word” mistakes, where a word is spelled correctly but is the WRONG word for the sentence " +
     "(very common in dyslexic writing — e.g. writing “licker” instead of “like”, or “grader” instead of “garden”). " +
-    "Use the rest of the paragraph to figure out what the writer meant.\n\n" +
-    "A quick local spellchecker already flagged these spots as possibly wrong (double-check each one — some may already be fine): " +
+    "Use the rest of the paragraph to figure out what the writer meant — not just the one sentence a mistake is " +
+    "in, but the sentences BEFORE and AFTER it too, since the real meaning is often only clear from what happens " +
+    "next. IMPORTANT: the word that sounds most alike, or is the most common word, is NOT always the right fix — " +
+    "when a phonetically-close word would contradict the surrounding story, pick the word that fits the story " +
+    "instead, even if it sounds less similar to the misspelling. For example, in \"Its getting liyt. I shud go " +
+    "to bed.\", the phonetically obvious guess is \"light\" (as in daylight) — but that CONTRADICTS the very next " +
+    "sentence: nobody says \"it's getting light out\" right before going to bed, that's when it gets dark and " +
+    "LATE. So the correct fix here is \"late\", not \"light\", precisely because it fits the story even though " +
+    "\"light\" sounds closer to the misspelling. Always check that your fix stays consistent with the surrounding " +
+    "story (time of day, sequence of events, who's doing what) — story logic beats sound-alike guessing.\n\n" +
+    "A quick local spellchecker already flagged these spots as possibly wrong. Its \"localGuess\" is a " +
+    "context-free guess based only on how the word is spelled (null if it had no guess at all) — it cannot " +
+    "read the sentence, so it is often wrong, especially for a real word used in the wrong context. " +
+    "\"confidence\" is how sure the local checker itself is. For EACH one, read the full paragraph (not just its " +
+    "own sentence) and decide: " +
+    "CONFIRM it (return it with the SAME suggestion as localGuess) if that guess is actually the right fix; " +
+    "REPLACE it (return it with a DIFFERENT suggestion) if localGuess is wrong but you can tell what the writer meant; " +
+    "or CLEAR it (leave it out of your reply entirely) if the original word is actually fine in context:\n" +
     JSON.stringify(hints) + "\n\n" +
     "Rules:\n" +
     "- Only include things that are genuinely wrong. Do not suggest style changes or make it fancier.\n" +
@@ -725,6 +749,7 @@ function buildPrompt(text, localFlags){
     "- \"suggestion\" is the corrected version of just that snippet.\n" +
     "- \"explanation\" is one short, warm, simple sentence (max 18 words) a child would understand, explaining WHY using the meaning of the sentence — not just “this is a typo”.\n" +
     "- \"type\" is one of: spelling, grammar, punctuation, word choice.\n" +
+    "- You may also flag genuine mistakes the local checker's hints above didn't mention.\n" +
     "- Reply with ONLY a JSON array, no other text. Example:\n" +
     "[{\"original\":\"he are\",\"suggestion\":\"he is\",\"type\":\"grammar\",\"explanation\":\"Use 'is' when talking about one person.\"}]\n\n" +
     "Paragraph:\n\"\"\"\n" + text + "\n\"\"\"";
@@ -1267,7 +1292,13 @@ async function handleSpokenWord(transcript){
 document.getElementById('popShow').addEventListener('click', function(){
   var f = state.flags[currentFlagIndex];
   if (f.suggestion){
-    popReveal.textContent = "The fix: “"+f.suggestion+"”";
+    // Only a suggestion the AI actually double-checked in context (verifiedByAI) earns the
+    // confident "The fix" phrasing. A local-only guess -- including one the AI was told about
+    // but never confirmed or replaced -- gets a softer, honest wording instead, so a kid never
+    // gets told "this is the fix" for something nobody actually verified against the sentence.
+    popReveal.textContent = f.verifiedByAI
+      ? "The fix: “"+f.suggestion+"”"
+      : "My best guess is “"+f.suggestion+"” — I haven't double-checked it in your sentence.";
     popReveal.classList.add('show');
     popInput.value = f.suggestion;
   } else {
@@ -1488,16 +1519,27 @@ async function runAIPass(text, localFlags){
         var f = state.flags[overlapIdx];
         f.start = loc.start; f.end = loc.end; f.original = item.original;
         f.suggestion = item.suggestion; f.type = type; f.source='ai'; f.model='ai-pass'; f.explanation = item.explanation || f.explanation;
+        f.verifiedByAI = true; f.aiVerdict = 'confirmed';
         claimedIdx[overlapIdx] = true;
         upgraded++;
       } else {
         state.flags.push({
           start:loc.start, end:loc.end, original:item.original, suggestion:item.suggestion,
-          type:type, source:'ai', model:'ai-pass', status:'open', explanation: item.explanation || ("This should be “"+item.suggestion+"”.")
+          type:type, source:'ai', model:'ai-pass', status:'open', explanation: item.explanation || ("This should be “"+item.suggestion+"”."),
+          verifiedByAI: true, aiVerdict: 'confirmed'
         });
         claimedIdx[state.flags.length-1] = true;
         added++;
       }
+    });
+    // Every hint told the AI where the local checker already thought something was wrong.
+    // Anything still sitting there with its original local guess, untouched by the loop above,
+    // is one the AI never backed up -- either it looked and decided the word was actually fine
+    // (a CLEAR), or it just didn't get to it. Either way, keep the local guess (it's often still
+    // useful) but mark it so the popover can be honest that nothing double-checked it in context,
+    // instead of presenting an unvetted guess with the same confidence as an AI-verified one.
+    hintFlags.forEach(function(f){
+      if (f.source === 'local' && !f.verifiedByAI) f.aiVerdict = 'unconfirmed';
     });
     // drop local-only spelling flags the AI looked at but didn't confirm (reduce noise),
     // but only when AI actually returned results (already inside try) and only for LOW-confidence local guesses.
@@ -1511,9 +1553,14 @@ async function runAIPass(text, localFlags){
       return true;
     });
     renderReviewed();
+    var aiBannerMsgs = [];
     if (aiCheck.truncated){
-      showBanner('info', "This document is long, so the deeper AI check only looked at the first ~2,000 words — the instant check above covered the whole thing.");
+      aiBannerMsgs.push("This document is long, so the deeper AI check only looked at the first ~2,000 words — the instant check above covered the whole thing.");
     }
+    if (result.partial){
+      aiBannerMsgs.push("Some of the deeper check's results may be incomplete — a fresh check can help fill in the rest.");
+    }
+    if (aiBannerMsgs.length) showBanner('info', aiBannerMsgs.join(' '));
     setStatus("Deeper check complete — "+state.flags.filter(function(f){return f.status==='open';}).length+" spot"+(state.flags.length===1?"":"s")+" to look at.");
   }catch(e){
     var code = e && e.code;
