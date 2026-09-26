@@ -140,6 +140,15 @@ restriction.
 
 ---
 
+## Uploading a file (new)
+
+The Write tab has a button to upload a `.txt` file, a PDF, or a photo (JPG/PNG) instead of
+typing or pasting. `.txt` and PDF extraction happen entirely in the visitor's own browser
+(PDF via pdf.js, loaded from a CDN) — no server involved, no cost. A photo goes to
+`worker.js`'s existing `/ai` endpoint with an extra `image` field, which sends it to
+`gpt-5-mini` (the only vision-capable model this app allows) to transcribe the text —
+billed the same as any other AI call, against the same per-session budget below.
+
 ## Cost safeguards already built in
 
 Three things keep this from running up an unexpected bill, in order of how
@@ -182,20 +191,14 @@ working:
   per visitor IP per minute — this is the actual server-side backstop
   against someone hammering the endpoint directly, since sessionStorage
   can't see across tabs or people.
-- **Restrict the Worker's CORS to your real domain.** Already done —
-  `ALLOWED_ORIGIN` in `wrangler.toml` is set to `https://diya-gupta000.github.io`
-  (GitHub Pages serves every repo under one account from that same origin,
-  so this one value covers the whole site regardless of which repo it's in).
-  This stops *other sites'* pages from quietly using your API key through
-  your Worker. It does **not** stop someone calling the Worker directly with
-  curl or a script — CORS is a browser-enforced rule, so a non-browser client
-  simply ignores it entirely — which is exactly what the rate-limiting rule
-  above is for. If you ever host a second copy of the site at a different
-  origin (a custom domain, a staging URL, testing from `localhost`), add it
-  by changing `ALLOWED_ORIGIN` to a comma-separated list and updating
-  `corsHeaders()` in `worker.js` to check the incoming request's `Origin`
-  header against that list rather than returning one fixed value — right now
-  it only supports a single exact origin.
+- **Restrict the Worker's CORS to your real domain.** Right now
+  `ALLOWED_ORIGIN` is set to `*` in `wrangler.toml` (anyone's page can call
+  your Worker). Once you know your site's real URL, change it to that exact
+  origin (e.g. `https://tinimini12.github.io`) and redeploy — this stops
+  *other sites'* pages from quietly using your API key through your Worker
+  (it doesn't stop someone calling the Worker directly with curl/a script,
+  since that's not subject to CORS at all — only the rate-limiting rule
+  above covers that case).
 - **Watch usage** at [platform.openai.com/usage](https://platform.openai.com/usage)
   the first week or two after sharing it widely, so a cost surprise doesn't
   sneak up on you.

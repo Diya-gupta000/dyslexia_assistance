@@ -138,18 +138,20 @@ function parseJsonLoose(text){
   if (start === -1) throw new Error("no JSON found in AI response");
   return JSON.parse(text.slice(start));
 }
-async function callAI(prompt, model, maxTokens){
+async function callAI(prompt, model, maxTokens, image){
   if (sessionBudgetLeft() <= 0){
     var budgetErr = new Error("this session's AI budget is used up");
     budgetErr.status = 'budget';
     throw budgetErr;
   }
+  var payload = { prompt: prompt, model: model, maxTokens: maxTokens };
+  if (image) payload.image = image; // data: URL for a photo upload -- see worker.js's vision handling
   var resp;
   try {
     resp = await fetch(WORKER_URL + "/ai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: prompt, model: model, maxTokens: maxTokens })
+      body: JSON.stringify(payload)
     });
   } catch(e){
     var neterr = new Error("network error reaching AI backend");
@@ -179,8 +181,11 @@ old_run_ai_pass = '''async function runAIPass(text, localFlags){
     showBanner('info', "AI checking isn't available in this view, so only the instant spelling check ran.");
     return;
   }
+  var aiCheck = truncateForAICheck(text);
+  var aiText = aiCheck.text;
   try{
-    var prompt = buildPrompt(text, localFlags);
+    var hintFlags = localFlags.filter(function(f){ return f.end <= aiText.length; });
+    var prompt = buildPrompt(aiText, hintFlags);
     var result = await sample.json(prompt, { modelTier: "complex" });
     if (!Array.isArray(result)) throw new Error("bad shape");'''
 new_run_ai_pass = '''async function runAIPass(text, localFlags){
@@ -189,8 +194,11 @@ new_run_ai_pass = '''async function runAIPass(text, localFlags){
     showBanner('info', "This site's AI checking backend hasn't been configured yet (see README-deploy.md) — only the instant spelling check ran.");
     return;
   }
+  var aiCheck = truncateForAICheck(text);
+  var aiText = aiCheck.text;
   try{
-    var prompt = buildPrompt(text, localFlags);
+    var hintFlags = localFlags.filter(function(f){ return f.end <= aiText.length; });
+    var prompt = buildPrompt(aiText, hintFlags);
     var result = await callAI(prompt, "gpt-5-mini", 1200);
     if (!Array.isArray(result)) throw new Error("bad shape");'''
 assert old_run_ai_pass in body_content, "runAIPass header not found"
@@ -310,6 +318,50 @@ assert old_practice_gen in body_content, "runPracticeGeneration block not found"
 body_content = body_content.replace(old_practice_gen, new_practice_gen, 1)
 
 # ---------------------------------------------------------------------------
+# 4c) Write tab file upload, JPG/PNG branch: claude.use("sample") -> callAI() over the
+#     worker's vision handling (real, testable against OpenAI's documented vision API,
+#     unlike the Artifact build's claude.use("sample") call, whose image support is
+#     unverified as of this build -- see the comment left in build.py's version of this
+#     function). Billed on gpt-5-mini (the only vision-capable model in ALLOWED_MODELS)
+#     against the same $0.20/session budget as everything else.
+# ---------------------------------------------------------------------------
+old_extract_image = '''async function extractImageText(file){
+  var sample = null;
+  try { sample = await claude.use("sample"); } catch(e){ sample = null; }
+  if (!sample) throw new Error("Photo reading isn't available here — try a .txt file or PDF instead.");
+  var dataUrl = await readFileAsDataURL(file);
+  var prompt = "Read every word of text visible in this photo of a page and transcribe it exactly as written, correcting nothing. " +
+    "Reply with ONLY a JSON object like {\\"text\\":\\"the transcribed text here\\"}. If a word is impossible to make out, use [?] in its place.";
+  var result;
+  try{
+    result = await sample.json(prompt, { modelTier: "complex", image: dataUrl });
+  }catch(e){
+    throw new Error("Photo reading isn't available here — try a .txt file or PDF instead.");
+  }
+  var text = result && typeof result.text === 'string' ? result.text : null;
+  if (!text) throw new Error("Couldn't read any text from that photo — try a clearer picture.");
+  return text;
+}'''
+new_extract_image = '''async function extractImageText(file){
+  if (!aiConfigured()) throw new Error("Photo reading isn't set up yet on this site (see README-deploy.md) — try a .txt file or PDF instead.");
+  var dataUrl = await readFileAsDataURL(file);
+  var prompt = "Read every word of text visible in this photo of a page and transcribe it exactly as written, correcting nothing. " +
+    "Reply with ONLY a JSON object like {\\"text\\":\\"the transcribed text here\\"}. If a word is impossible to make out, use [?] in its place.";
+  var result;
+  try{
+    result = await callAI(prompt, "gpt-5-mini", 2000, dataUrl);
+  }catch(e){
+    if (e && e.status === 'budget') throw new Error("This session's AI budget is used up — reload the page to start a fresh session, or try a .txt file or PDF instead.");
+    throw new Error("Photo reading isn't available right now — try a .txt file or PDF instead.");
+  }
+  var text = result && typeof result.text === 'string' ? result.text : null;
+  if (!text) throw new Error("Couldn't read any text from that photo — try a clearer picture.");
+  return text;
+}'''
+assert old_extract_image in body_content, "extractImageText block not found"
+body_content = body_content.replace(old_extract_image, new_extract_image, 1)
+
+# ---------------------------------------------------------------------------
 # 5) progress storage: claude.use("db") -> localStorage
 # ---------------------------------------------------------------------------
 old_db = '''/* ---------------- progress / db ---------------- */
@@ -338,7 +390,6 @@ async function loadProgress(){
     if (data && data.practiceStreaks && typeof data.practiceStreaks === 'object') state.practiceStreaks = data.practiceStreaks;
     if (data && typeof data.practiceSessions === 'number') state.practiceSessions = data.practiceSessions;
     if (data && Array.isArray(data.practiceRounds)) state.practiceRounds = data.practiceRounds;
-    if (data && Array.isArray(data.readingSessions)) state.readingSessions = data.readingSessions;
   }catch(e){}
   renderProgress();
 }
@@ -352,7 +403,6 @@ async function saveProgress(){
       wordErrors: state.wordErrors, confusionErrors: state.confusionErrors,
       practiceStreaks: state.practiceStreaks, practiceSessions: state.practiceSessions,
       practiceRounds: state.practiceRounds,
-      readingSessions: state.readingSessions,
       updatedAt: new Date().toISOString() });
   }catch(e){}
 }'''
@@ -380,7 +430,6 @@ function loadProgress(){
         if (parsed.practiceStreaks && typeof parsed.practiceStreaks === 'object') state.practiceStreaks = parsed.practiceStreaks;
         if (typeof parsed.practiceSessions === 'number') state.practiceSessions = parsed.practiceSessions;
         if (Array.isArray(parsed.practiceRounds)) state.practiceRounds = parsed.practiceRounds;
-        if (Array.isArray(parsed.readingSessions)) state.readingSessions = parsed.readingSessions;
       }
     }
   }catch(e){}
@@ -393,8 +442,7 @@ function saveProgress(){
       sessions: state.sessions,
       wordErrors: state.wordErrors, confusionErrors: state.confusionErrors,
       practiceStreaks: state.practiceStreaks, practiceSessions: state.practiceSessions,
-      practiceRounds: state.practiceRounds,
-      readingSessions: state.readingSessions
+      practiceRounds: state.practiceRounds
     }));
   }catch(e){}
 }'''

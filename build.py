@@ -68,13 +68,6 @@ html = r"""<title>Second Look</title>
      around, not just its starting default. */
   --read-fs: 18px;
   --font-body: "Atkinson Hyperlegible","Lexend",system-ui,sans-serif;
-  /* Read tab typography extras -- same "direct custom-property write" pattern as --read-fs
-     above (applyReadPrefs() sets these too), rather than a font-swap attribute selector,
-     since these are plain continuous/enumerable values with no fallback-chain concerns. */
-  --read-line-height: 1.5;
-  --read-letter-spacing: normal;
-  --read-tint-bg: #FAF8F2;
-  --read-tint-text: #2B2B2B;
 }
 :root[data-read-font="opendyslexic"]{
   --font-body: "OpenDyslexicShared","Atkinson Hyperlegible","Lexend",system-ui,sans-serif;
@@ -160,6 +153,7 @@ header.top{
 
 /* --- write view --- */
 .editor-toolbar{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; flex-wrap:wrap;}
+.editor-toolbar-actions{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
 .wordcount{font-size:12.5px; color:var(--text-muted); font-variant-numeric:tabular-nums;}
 
 textarea#editor{
@@ -369,16 +363,9 @@ button.btn.mic.listening{background:var(--warn); border-color:var(--warn); color
   }
 }
 
-/* --- read view --- */
-.read-textarea{
-  width:100%; max-width:65ch; min-height:140px; resize:vertical; border-radius:14px; border:1.5px solid var(--border);
-  background:var(--surface-2); color:var(--text); padding:16px 18px; font:inherit; font-size:var(--read-fs); line-height:1.65;
-  letter-spacing:0.05em;
-}
-.read-textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
-.read-samples{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
-/* Hides the native file input without hiding it from assistive tech or keyboard focus --
-   the visible, styled control is the <label for="readUpload"> button next to it. */
+/* Hides a native file input without hiding it from assistive tech or keyboard focus --
+   the visible, styled control is the <label for="..."> button next to it. Used by the
+   Write tab's "Upload a file" control. */
 .sr-only-file-input{
   position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
   clip:rect(0,0,0,0); white-space:nowrap; border:0;
@@ -386,30 +373,6 @@ button.btn.mic.listening{background:var(--warn); border-color:var(--warn); color
 .sr-only-file-input:focus-visible + label, label.btn:has(+ .sr-only-file-input:focus-visible){
   outline:3px solid var(--accent); outline-offset:2px;
 }
-
-.read-toolbar{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:16px;}
-.read-chunknav{display:flex; align-items:center; gap:10px;}
-.read-chunk-indicator{font-size:13px; color:var(--text-muted); font-variant-numeric:tabular-nums; white-space:nowrap;}
-.read-speechctrls{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-.read-speechctrls select{
-  min-height:44px; padding:8px 10px; border-radius:10px; border:1.5px solid var(--border);
-  background:var(--surface-2); color:var(--text); font-size:14px; font-family:var(--font-body);
-}
-.read-speechctrls select:focus-visible{outline:3px solid var(--accent); outline-offset:2px;}
-
-.read-pane{
-  max-width:65ch; border-radius:14px; border:1.5px solid var(--border); padding:20px 22px;
-  background:var(--read-tint-bg); color:var(--read-tint-text);
-  font-size:var(--read-fs); line-height:var(--read-line-height); letter-spacing:var(--read-letter-spacing);
-  text-align:left;
-}
-.read-chunk{padding:6px 8px; border-radius:8px; margin:0 -8px 14px; transition:background .15s;}
-.read-chunk:last-child{margin-bottom:0;}
-.read-chunk.active{background:var(--accent-soft);}
-.word-highlight{background:var(--accent); color:var(--accent-contrast); border-radius:3px; padding:0 2px;}
-.read-pane .word{cursor:pointer; border-radius:3px;}
-.read-pane .word:hover{background:var(--accent-soft);}
-.read-pane .word:focus-visible{outline:3px solid var(--accent); outline-offset:1px;}
 </style>
 
 <div class="wrap">
@@ -424,7 +387,6 @@ button.btn.mic.listening{background:var(--warn); border-color:var(--warn); color
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" aria-selected="true" data-view="write">Write</button>
       <button class="tab" role="tab" aria-selected="false" data-view="progress">My Progress</button>
-      <button class="tab" role="tab" aria-selected="false" data-view="read">Read</button>
     </div>
     <div class="rs-wrap">
       <button class="iconbtn" id="btnReadingSettings" title="Reading settings" aria-label="Reading settings" aria-haspopup="true" aria-expanded="false">Aa</button>
@@ -440,23 +402,6 @@ button.btn.mic.listening{background:var(--warn); border-color:var(--warn); color
           <span class="rs-sizeval" id="rsSizeVal">18px</span>
           <button type="button" id="rsSizeUp" aria-label="Larger text">A+</button>
         </div>
-        <h4 id="rsLineLabel">Line spacing</h4>
-        <div class="rs-row" role="group" aria-labelledby="rsLineLabel">
-          <button type="button" class="rs-option" id="rsLineNormal" aria-pressed="false">1.0×</button>
-          <button type="button" class="rs-option" id="rsLineRelaxed" aria-pressed="true">1.5×</button>
-          <button type="button" class="rs-option" id="rsLineLoose" aria-pressed="false">2.0×</button>
-        </div>
-        <h4 id="rsLetterLabel">Letter spacing</h4>
-        <div class="rs-row" role="group" aria-labelledby="rsLetterLabel">
-          <button type="button" class="rs-option" id="rsLetterNormal" aria-pressed="true">Normal</button>
-          <button type="button" class="rs-option" id="rsLetterWide" aria-pressed="false">Wide</button>
-        </div>
-        <h4 id="rsTintLabel">Background</h4>
-        <div class="rs-row" role="group" aria-labelledby="rsTintLabel">
-          <button type="button" class="rs-option" id="rsTintCream" aria-pressed="true">Cream</button>
-          <button type="button" class="rs-option" id="rsTintYellow" aria-pressed="false">Soft yellow</button>
-          <button type="button" class="rs-option" id="rsTintGrey" aria-pressed="false">Light grey</button>
-        </div>
       </div>
     </div>
   </header>
@@ -465,10 +410,15 @@ button.btn.mic.listening{background:var(--warn); border-color:var(--warn); color
     <div class="card">
       <div class="editor-toolbar">
         <span class="wordcount" id="wordcount">0 words</span>
-        <button class="iconbtn" id="btnReadAloud" title="Read my paragraph aloud" aria-label="Read my paragraph aloud">🔊</button>
+        <div class="editor-toolbar-actions">
+          <label class="btn ghost" for="fileUpload" id="fileUploadLabel" tabindex="0">📄 Upload a file</label>
+          <input type="file" id="fileUpload" class="sr-only-file-input" accept=".txt,text/plain,.pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png">
+          <button class="iconbtn" id="btnReadAloud" title="Read my paragraph aloud" aria-label="Read my paragraph aloud">🔊</button>
+        </div>
       </div>
+      <div id="uploadBanner"></div>
 
-      <textarea id="editor" placeholder="Type or paste your paragraph here. When you're ready, press Check my writing." spellcheck="false"></textarea>
+      <textarea id="editor" placeholder="Type or paste your paragraph here, or upload a .txt, PDF, or photo of a page above. When you're ready, press Check my writing." spellcheck="false"></textarea>
       <div id="reviewed" class="reviewed" style="display:none;" aria-live="polite"></div>
 
       <div class="btnrow">
@@ -524,57 +474,6 @@ button.btn.mic.listening{background:var(--warn); border-color:var(--warn); color
     <div class="card breakdown" id="feedbackCard" style="display:none;">
       <h3>Suggestions you reported</h3>
       <div class="feedback-list" id="feedbackSummary"></div>
-    </div>
-    <div class="card breakdown" id="readingStatsCard" style="display:none;">
-      <h3>Reading</h3>
-      <div class="stat-grid" id="readingStatGrid"></div>
-    </div>
-  </div>
-
-  <div id="view-read" class="view">
-    <div class="card" id="read-input">
-      <h3 style="margin-bottom:4px;">Read</h3>
-      <p style="color:var(--text-muted); font-size:14px; margin:0 0 14px;">Paste or type something you want to read, or try a sample below. $0 cost — read-aloud runs entirely in your browser, no AI, no network call.</p>
-      <textarea id="readInput" class="read-textarea" placeholder="Paste or type something you want to read." spellcheck="false"></textarea>
-      <div class="wordcount" id="readWordcount" style="margin-top:8px;">0 words</div>
-      <div class="read-samples">
-        <button class="btn ghost" id="sampleShort" type="button">Sample: Short (draft)</button>
-        <button class="btn ghost" id="sampleMedium" type="button">Sample: Medium (draft)</button>
-        <button class="btn ghost" id="sampleLong" type="button">Sample: Long (draft)</button>
-      </div>
-      <div class="btnrow">
-        <button class="btn primary" id="btnStartReading" type="button">▶ Start reading</button>
-        <button class="btn ghost" id="btnClearRead" type="button">Clear</button>
-        <label class="btn ghost" for="readUpload" id="readUploadLabel" tabindex="0">Upload .txt file</label>
-        <input type="file" id="readUpload" class="sr-only-file-input" accept=".txt,text/plain">
-      </div>
-      <div id="readInputBanner"></div>
-    </div>
-
-    <div class="card" id="read-view" style="display:none;">
-      <div id="readBanner"></div>
-      <div class="read-toolbar">
-        <div class="read-chunknav">
-          <button class="iconbtn" id="btnPrevChunk" aria-label="Previous chunk" disabled>⟵</button>
-          <span class="read-chunk-indicator" id="readChunkIndicator">Chunk 1 of 1</span>
-          <button class="iconbtn" id="btnNextChunk" aria-label="Next chunk" disabled>⟶</button>
-        </div>
-        <div class="read-speechctrls">
-          <button class="btn primary" id="btnPlayPause" type="button">▶ Play</button>
-          <button class="btn ghost" id="btnStopReading" type="button">⏹ Stop</button>
-          <label for="readSpeed" style="font-size:13px; color:var(--text-muted);">Speed</label>
-          <select id="readSpeed">
-            <option value="0.75">0.75×</option>
-            <option value="1" selected>1×</option>
-            <option value="1.25">1.25×</option>
-          </select>
-        </div>
-      </div>
-      <div class="read-pane" id="readPane" aria-live="polite"></div>
-      <div class="btnrow" style="margin-top:16px;">
-        <button class="btn ghost" id="btnSendToWrite" type="button">Send to Write</button>
-        <button class="btn ghost" id="btnBackToInput" type="button">✏️ Read something else</button>
-      </div>
     </div>
   </div>
 </div>
@@ -860,25 +759,14 @@ var READ_PREFS_KEY = "secondlook_reading_prefs_v1";
 var READ_FS_MIN = 18, READ_FS_MAX = 32, READ_FS_STEP = 2, READ_FS_DEFAULT = 18;
 var openDyslexicInjected = false;
 
-// Line spacing / letter spacing / background tint are Read-tab-only extras, but they live in
-// this same prefs object and localStorage key rather than a second one -- one blob, one place
-// a student's reading setup lives, same as font+size already did.
-var READ_TINTS = {
-  cream:  { bg: '#FAF8F2', text: '#2B2B2B' },
-  yellow: { bg: '#FBF3D9', text: '#2B2B2B' },
-  grey:   { bg: '#EDEDE9', text: '#2B2B2B' }
-};
 function loadReadPrefs(){
-  var prefs = { font: 'atkinson', size: READ_FS_DEFAULT, lineSpacing: 1.5, letterSpacing: 'normal', tint: 'cream' };
+  var prefs = { font: 'atkinson', size: READ_FS_DEFAULT };
   try{
     var raw = localStorage.getItem(READ_PREFS_KEY);
     if (raw){
       var parsed = JSON.parse(raw);
       if (parsed && (parsed.font === 'atkinson' || parsed.font === 'opendyslexic')) prefs.font = parsed.font;
       if (parsed && typeof parsed.size === 'number' && parsed.size >= READ_FS_MIN && parsed.size <= READ_FS_MAX) prefs.size = parsed.size;
-      if (parsed && (parsed.lineSpacing === 1 || parsed.lineSpacing === 1.5 || parsed.lineSpacing === 2)) prefs.lineSpacing = parsed.lineSpacing;
-      if (parsed && (parsed.letterSpacing === 'normal' || parsed.letterSpacing === 'wide')) prefs.letterSpacing = parsed.letterSpacing;
-      if (parsed && READ_TINTS.hasOwnProperty(parsed.tint)) prefs.tint = parsed.tint;
     }
   }catch(e){}
   return prefs;
@@ -912,14 +800,6 @@ var rsFontOpenDyslexic = document.getElementById('rsFontOpenDyslexic');
 var rsSizeVal = document.getElementById('rsSizeVal');
 var rsSizeUp = document.getElementById('rsSizeUp');
 var rsSizeDown = document.getElementById('rsSizeDown');
-var rsLineNormal = document.getElementById('rsLineNormal');
-var rsLineRelaxed = document.getElementById('rsLineRelaxed');
-var rsLineLoose = document.getElementById('rsLineLoose');
-var rsLetterNormal = document.getElementById('rsLetterNormal');
-var rsLetterWide = document.getElementById('rsLetterWide');
-var rsTintCream = document.getElementById('rsTintCream');
-var rsTintYellow = document.getElementById('rsTintYellow');
-var rsTintGrey = document.getElementById('rsTintGrey');
 var readPrefs = loadReadPrefs();
 
 function applyReadPrefs(){
@@ -931,22 +811,6 @@ function applyReadPrefs(){
   rsSizeVal.textContent = readPrefs.size + 'px';
   rsSizeDown.disabled = readPrefs.size <= READ_FS_MIN;
   rsSizeUp.disabled = readPrefs.size >= READ_FS_MAX;
-
-  document.documentElement.style.setProperty('--read-line-height', String(readPrefs.lineSpacing));
-  rsLineNormal.setAttribute('aria-pressed', String(readPrefs.lineSpacing === 1));
-  rsLineRelaxed.setAttribute('aria-pressed', String(readPrefs.lineSpacing === 1.5));
-  rsLineLoose.setAttribute('aria-pressed', String(readPrefs.lineSpacing === 2));
-
-  document.documentElement.style.setProperty('--read-letter-spacing', readPrefs.letterSpacing === 'wide' ? '0.12em' : 'normal');
-  rsLetterNormal.setAttribute('aria-pressed', String(readPrefs.letterSpacing === 'normal'));
-  rsLetterWide.setAttribute('aria-pressed', String(readPrefs.letterSpacing === 'wide'));
-
-  var tint = READ_TINTS[readPrefs.tint] || READ_TINTS.cream;
-  document.documentElement.style.setProperty('--read-tint-bg', tint.bg);
-  document.documentElement.style.setProperty('--read-tint-text', tint.text);
-  rsTintCream.setAttribute('aria-pressed', String(readPrefs.tint === 'cream'));
-  rsTintYellow.setAttribute('aria-pressed', String(readPrefs.tint === 'yellow'));
-  rsTintGrey.setAttribute('aria-pressed', String(readPrefs.tint === 'grey'));
 }
 applyReadPrefs();
 
@@ -964,14 +828,6 @@ rsSizeDown.addEventListener('click', function(){
   readPrefs.size = Math.max(READ_FS_MIN, readPrefs.size - READ_FS_STEP);
   saveReadPrefs(readPrefs); applyReadPrefs();
 });
-rsLineNormal.addEventListener('click', function(){ readPrefs.lineSpacing = 1; saveReadPrefs(readPrefs); applyReadPrefs(); });
-rsLineRelaxed.addEventListener('click', function(){ readPrefs.lineSpacing = 1.5; saveReadPrefs(readPrefs); applyReadPrefs(); });
-rsLineLoose.addEventListener('click', function(){ readPrefs.lineSpacing = 2; saveReadPrefs(readPrefs); applyReadPrefs(); });
-rsLetterNormal.addEventListener('click', function(){ readPrefs.letterSpacing = 'normal'; saveReadPrefs(readPrefs); applyReadPrefs(); });
-rsLetterWide.addEventListener('click', function(){ readPrefs.letterSpacing = 'wide'; saveReadPrefs(readPrefs); applyReadPrefs(); });
-rsTintCream.addEventListener('click', function(){ readPrefs.tint = 'cream'; saveReadPrefs(readPrefs); applyReadPrefs(); });
-rsTintYellow.addEventListener('click', function(){ readPrefs.tint = 'yellow'; saveReadPrefs(readPrefs); applyReadPrefs(); });
-rsTintGrey.addEventListener('click', function(){ readPrefs.tint = 'grey'; saveReadPrefs(readPrefs); applyReadPrefs(); });
 
 var btnReadingSettings = document.getElementById('btnReadingSettings');
 var rsPanel = document.getElementById('rsPanel');
@@ -1010,8 +866,7 @@ var state = {
   confusionErrors: {},   // { "a/b": { correctCounts: {a:n,b:n}, total:n } }
   practiceStreaks: {},   // { "<target key>": <consecutive correct-in-practice count> } -- 3+ retires a target
   practiceSessions: 0,
-  practiceRounds: [],    // [{date, score}] -- score 0-100, first-try-correct rate; feeds the chart's practice-round points
-  readingSessions: []    // [{date, words}] -- one entry per successful "Start reading" on the Read tab (stretch-goal reading stats)
+  practiceRounds: []    // [{date, score}] -- score 0-100, first-try-correct rate; feeds the chart's practice-round points
 };
 
 var editor = document.getElementById('editor');
@@ -1024,16 +879,22 @@ var btnEditAgain = document.getElementById('btnEditAgain');
 var btnFinish = document.getElementById('btnFinish');
 var useAI = document.getElementById('useAI');
 
-editor.addEventListener('input', function(){
-  var words = editor.value.trim().length ? editor.value.trim().split(/\s+/).length : 0;
+// General-purpose word counter -- used by the editor's live wordcount, the uploaded-file
+// wordcount, and the AI-check length limit below. Kept as one shared function rather than
+// three inline copies now that none of its callers are Read-tab-specific anymore.
+function countWords(t){
+  var trimmed = (t||'').trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
+function updateEditorWordcount(){
+  var words = countWords(editor.value);
   wordcountEl.textContent = words + (words===1?' word':' words');
-});
+}
+editor.addEventListener('input', updateEditorWordcount);
 
 document.querySelectorAll('.tab').forEach(function(tab){
   tab.addEventListener('click', function(){
-    // Leaving the Read tab (for any other tab) always stops any in-progress read-aloud --
-    // a student switching to Write shouldn't keep hearing a passage they've navigated away from.
-    if (tab.dataset.view !== 'read') stopReadSpeech();
     document.querySelectorAll('.tab').forEach(function(t){ t.setAttribute('aria-selected', t===tab ? 'true':'false'); });
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
     document.getElementById('view-'+tab.dataset.view).classList.add('active');
@@ -1049,6 +910,9 @@ function showBanner(kind, msg){
   bannersEl.innerHTML = '<div class="banner '+kind+'">'+msg+'</div>';
 }
 function clearBanner(){ bannersEl.innerHTML = ""; }
+function showUploadBanner(kind, msg){
+  document.getElementById('uploadBanner').innerHTML = msg ? ('<div class="banner '+kind+'">'+msg+'</div>') : "";
+}
 
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1552,6 +1416,24 @@ btnCheck.addEventListener('click', function(){
   runAIPass(text, localFlags);
 });
 
+// There's no length cap on what a student can put in the editor (an uploaded PDF or photo
+// can turn into a very long paragraph), so the deeper AI pass -- unlike the free local
+// check just above it, which always runs on the full text -- only reads roughly the first
+// AI_CHECK_MAX_WORDS words. That keeps one huge upload from becoming a giant, slow prompt.
+// Plain string/regex work with nothing build-target-specific in it, so this same function
+// (unlike the sample.json/callAI split right below it) carries over unmodified into the
+// public build.
+var AI_CHECK_MAX_WORDS = 2000;
+function truncateForAICheck(text){
+  var re = /\S+/g, match, count = 0, cutIndex = -1;
+  while ((match = re.exec(text)) !== null){
+    count++;
+    if (count === AI_CHECK_MAX_WORDS){ cutIndex = match.index + match[0].length; break; }
+  }
+  if (cutIndex === -1) return { text: text, truncated: false };
+  return { text: text.slice(0, cutIndex), truncated: true };
+}
+
 async function runAIPass(text, localFlags){
   var sample = null;
   try { sample = await claude.use("sample"); } catch(e){ sample = null; }
@@ -1560,8 +1442,11 @@ async function runAIPass(text, localFlags){
     showBanner('info', "AI checking isn't available in this view, so only the instant spelling check ran.");
     return;
   }
+  var aiCheck = truncateForAICheck(text);
+  var aiText = aiCheck.text;
   try{
-    var prompt = buildPrompt(text, localFlags);
+    var hintFlags = localFlags.filter(function(f){ return f.end <= aiText.length; });
+    var prompt = buildPrompt(aiText, hintFlags);
     var result = await sample.json(prompt, { modelTier: "complex" });
     if (!Array.isArray(result)) throw new Error("bad shape");
     // Starts empty on purpose, NOT seeded from the existing local flags: a local flag's
@@ -1590,7 +1475,7 @@ async function runAIPass(text, localFlags){
     var claimedIdx = {};
     result.forEach(function(item){
       if (!item || typeof item.original !== 'string' || typeof item.suggestion !== 'string') return;
-      var loc = locateSnippet(text, item.original, used);
+      var loc = locateSnippet(aiText, item.original, used);
       if (!loc) return;
       used.push(loc);
       aiLocs.push(loc);
@@ -1626,6 +1511,9 @@ async function runAIPass(text, localFlags){
       return true;
     });
     renderReviewed();
+    if (aiCheck.truncated){
+      showBanner('info', "This document is long, so the deeper AI check only looked at the first ~2,000 words — the instant check above covered the whole thing.");
+    }
     setStatus("Deeper check complete — "+state.flags.filter(function(f){return f.status==='open';}).length+" spot"+(state.flags.length===1?"":"s")+" to look at.");
   }catch(e){
     var code = e && e.code;
@@ -1752,7 +1640,6 @@ async function loadProgress(){
     if (data && data.practiceStreaks && typeof data.practiceStreaks === 'object') state.practiceStreaks = data.practiceStreaks;
     if (data && typeof data.practiceSessions === 'number') state.practiceSessions = data.practiceSessions;
     if (data && Array.isArray(data.practiceRounds)) state.practiceRounds = data.practiceRounds;
-    if (data && Array.isArray(data.readingSessions)) state.readingSessions = data.readingSessions;
   }catch(e){}
   renderProgress();
 }
@@ -1766,7 +1653,6 @@ async function saveProgress(){
       wordErrors: state.wordErrors, confusionErrors: state.confusionErrors,
       practiceStreaks: state.practiceStreaks, practiceSessions: state.practiceSessions,
       practiceRounds: state.practiceRounds,
-      readingSessions: state.readingSessions,
       updatedAt: new Date().toISOString() });
   }catch(e){}
 }
@@ -1816,30 +1702,9 @@ function renderFeedbackSummary(){
   }).join('') + '<div class="empty-state" style="padding:10px 0 0;font-size:12.5px;">'+fb.length+' total report'+(fb.length===1?'':'s')+' — thanks for helping make this better.</div>';
 }
 
-function renderReadingStats(){
-  var card = document.getElementById('readingStatsCard');
-  var grid = document.getElementById('readingStatGrid');
-  var sessions = state.readingSessions || [];
-  if (!sessions.length){
-    card.style.display = 'none';
-    return;
-  }
-  card.style.display = '';
-  var totalWords = sessions.reduce(function(a,r){ return a + (r.words||0); }, 0);
-  var longest = sessions.reduce(function(a,r){ return Math.max(a, r.words||0); }, 0);
-  var avg = Math.round(totalWords / sessions.length);
-  function stat(num,lbl){ return '<div class="stat"><div class="num">'+num+'</div><div class="lbl">'+lbl+'</div></div>'; }
-  grid.innerHTML =
-    stat(sessions.length, sessions.length===1?'passage read':'passages read') +
-    stat(totalWords, 'words read total') +
-    stat(avg, 'avg. words per passage') +
-    stat(longest, 'longest passage');
-}
-
 function renderProgress(){
   renderFeedbackSummary();
   updatePracticeGeneratorState(); // manages its own button/explainer visibility, independent of the early return below
-  renderReadingStats(); // independent stretch-goal card -- has its own data source (state.readingSessions), so it renders/hides itself regardless of whether the Write tab has any sessions yet
   var grid = document.getElementById('statGrid');
   var chart = document.getElementById('chart');
   var bars = document.getElementById('bars');
@@ -2292,363 +2157,132 @@ practiceCardsEl.addEventListener('keydown', function(e){
   }
 });
 
-/* ---------------- Read tab: chunking + navigation ----------------
-   Zero network calls, zero AI, $0 cost -- this whole tab runs on the browser's own
-   Web Speech API (wired in a later pass) plus plain DOM/string work. Chunking splits
-   the passage at paragraph breaks first, and only falls back to grouping sentences
-   when a single paragraph is long enough that reading (or listening to) it as one
-   block would stop being "a chunk" in any useful sense. That keeps short paragraphs
-   as their own natural unit and keeps long ones navigable instead of one huge wall
-   of text with a single Next button beyond it. */
-var READ_CHUNK_MAX_WORDS = 60;
-var READ_MAX_WORDS = 2000;
-
-function countWords(t){
-  var trimmed = (t||'').trim();
-  return trimmed ? trimmed.split(/\s+/).length : 0;
-}
-
-function splitIntoSentences(paragraph){
-  var matches = paragraph.match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g);
-  var sentences = (matches || [paragraph]).map(function(s){ return s.trim(); }).filter(Boolean);
-  return sentences.length ? sentences : [paragraph.trim()];
-}
-
-function chunkParagraph(paragraph){
-  var words = countWords(paragraph);
-  if (words <= READ_CHUNK_MAX_WORDS) return [paragraph.trim()];
-  var sentences = splitIntoSentences(paragraph);
-  if (sentences.length <= 1) return [paragraph.trim()]; // one giant sentence -- nothing sensible left to split on
-  var chunks = [], buf = [], bufWords = 0;
-  sentences.forEach(function(s){
-    var w = countWords(s);
-    if (bufWords > 0 && bufWords + w > READ_CHUNK_MAX_WORDS){
-      chunks.push(buf.join(' '));
-      buf = []; bufWords = 0;
-    }
-    buf.push(s); bufWords += w;
+/* ---------------- Write tab: upload a file (.txt / PDF / photo) ----------------
+   Lets a student load a paragraph from a file instead of typing or pasting it, straight
+   into the same editor -- overwriting whatever was already there, deliberately silently
+   (no confirmation step), same as every other "load text into the editor" action in this
+   app. There's no length limit here (the old 2000-word cap was Read-tab-only and left with
+   that tab), so a long document is fine -- see AI_CHECK_MAX_WORDS above for how the deeper
+   AI check handles a very long one. */
+function readFileAsText(file){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onload = function(){ resolve(String(reader.result || '')); };
+    reader.onerror = function(){ reject(new Error("Couldn't read that file — try a different one.")); };
+    reader.readAsText(file);
   });
-  if (buf.length) chunks.push(buf.join(' '));
-  return chunks;
 }
-
-// Every line break the student enters (blank-line paragraph or single line break alike)
-// is treated as a paragraph boundary -- simplest match for how a pasted or typed passage
-// is actually laid out in a plain textarea.
-function chunkText(text){
-  var paragraphs = text.split(/\r?\n+/).map(function(p){ return p.trim(); }).filter(Boolean);
-  var chunks = [];
-  paragraphs.forEach(function(p){
-    chunkParagraph(p).forEach(function(c){ chunks.push(c); });
+function readFileAsDataURL(file){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onload = function(){ resolve(String(reader.result || '')); };
+    reader.onerror = function(){ reject(new Error("Couldn't read that file — try a different one.")); };
+    reader.readAsDataURL(file);
   });
-  return chunks.length ? chunks : [text.trim()];
 }
 
-// Wraps each word/punctuation cluster in its own clickable span (used by the speech
-// controller for click-to-hear and word-level highlighting) while leaving the
-// whitespace between them as plain text nodes, so line-wrapping stays natural.
-function wrapChunkWords(text){
-  var tokens = text.split(/(\s+)/);
-  return tokens.map(function(tok){
-    if (!tok) return '';
-    if (/^\s+$/.test(tok)) return tok;
-    return '<span class="word" tabindex="0" role="button">'+escapeHtml(tok)+'</span>';
-  }).join('');
+/* PDF text extraction via pdf.js, loaded from a CDN on first use -- the same tradeoff
+   already made for the OpenDyslexic font: works well on the real public site, but this
+   Artifact preview's sandbox may block loading a script from a CDN, in which case this
+   throws and the student sees a plain "PDF reading isn't available here" message instead
+   of the upload silently doing nothing. */
+var pdfjsLoadPromise = null;
+function ensurePdfJsLoaded(){
+  if (pdfjsLoadPromise) return pdfjsLoadPromise;
+  pdfjsLoadPromise = new Promise(function(resolve, reject){
+    if (window.pdfjsLib){ resolve(window.pdfjsLib); return; }
+    var script = document.createElement('script');
+    // Pinned to 3.11.174 deliberately -- it's the newest cdnjs release that still ships the
+    // classic pdf.min.js/pdf.worker.min.js pair a plain <script> tag can load. Newer pdf.js
+    // releases dropped that build and only ship ES modules (.mjs), which this simple
+    // create-a-<script>-tag loader can't consume directly.
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    script.onload = function(){
+      try{
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        resolve(window.pdfjsLib);
+      }catch(e){ reject(e); }
+    };
+    script.onerror = function(){ reject(new Error("PDF reading isn't available here — try a .txt file instead, or paste the text directly.")); };
+    document.head.appendChild(script);
+  });
+  return pdfjsLoadPromise;
 }
-
-var readState = { chunks: [], currentChunk: 0 };
-var readInputEl = document.getElementById('readInput');
-var readWordcountEl = document.getElementById('readWordcount');
-var readInputCard = document.getElementById('read-input');
-var readViewCard = document.getElementById('read-view');
-var readPaneEl = document.getElementById('readPane');
-var readChunkIndicatorEl = document.getElementById('readChunkIndicator');
-var btnPrevChunk = document.getElementById('btnPrevChunk');
-var btnNextChunk = document.getElementById('btnNextChunk');
-var btnStartReading = document.getElementById('btnStartReading');
-var btnClearRead = document.getElementById('btnClearRead');
-var btnBackToInput = document.getElementById('btnBackToInput');
-var readInputBannerEl = document.getElementById('readInputBanner');
-var readBannerEl = document.getElementById('readBanner');
-
-// Placeholder until the speech controller (next pass) replaces it -- kept as its own
-// named function now so the tab-switch handler above always has something safe to call,
-// whether or not speech has actually started.
-function stopReadSpeech(){
-  try{ window.speechSynthesis && window.speechSynthesis.cancel(); }catch(e){}
-}
-
-function updateReadWordcount(){
-  var words = countWords(readInputEl.value);
-  readWordcountEl.textContent = words + (words===1?' word':' words') + (words > READ_MAX_WORDS ? ' — over the 2000-word limit' : '');
-  readWordcountEl.style.color = words > READ_MAX_WORDS ? 'var(--warn)' : '';
-}
-readInputEl.addEventListener('input', updateReadWordcount);
-
-function renderReadPane(){
-  readPaneEl.innerHTML = readState.chunks.map(function(chunk, i){
-    return '<div class="read-chunk'+(i===readState.currentChunk?' active':'')+'" data-chunk-idx="'+i+'">'+wrapChunkWords(chunk)+'</div>';
-  }).join('');
-}
-
-function goToChunk(idx){
-  var n = readState.chunks.length;
-  if (idx < 0 || idx >= n) return;
-  readState.currentChunk = idx;
-  var chunkEls = readPaneEl.querySelectorAll('.read-chunk');
-  chunkEls.forEach(function(el, i){ el.classList.toggle('active', i === idx); });
-  if (chunkEls[idx]) chunkEls[idx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  readChunkIndicatorEl.textContent = 'Chunk ' + (idx+1) + ' of ' + n;
-  btnPrevChunk.disabled = idx <= 0;
-  btnNextChunk.disabled = idx >= n-1;
-}
-
-btnPrevChunk.addEventListener('click', function(){ stopReadSpeech(); goToChunk(readState.currentChunk - 1); });
-btnNextChunk.addEventListener('click', function(){ stopReadSpeech(); goToChunk(readState.currentChunk + 1); });
-
-function startReading(text){
-  readState.chunks = chunkText(text);
-  readState.currentChunk = 0;
-  readState.sourceText = text; // kept whole (pre-chunking) so "Send to Write" hands over the original text, not one chunk
-  renderReadPane();
-  goToChunk(0);
-  readBannerEl.innerHTML = '';
-  if (!('speechSynthesis' in window)){
-    readBannerEl.innerHTML = '<div class="banner info">Read-aloud isn’t available in this browser, but you can still read here with the display settings and chunk navigation.</div>';
+async function extractPdfText(file){
+  var pdfjsLib = await ensurePdfJsLoaded();
+  var buf = await file.arrayBuffer();
+  var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  var pages = [];
+  for (var i = 1; i <= pdf.numPages; i++){
+    var page = await pdf.getPage(i);
+    var content = await page.getTextContent();
+    pages.push(content.items.map(function(it){ return it.str; }).join(' ').trim());
   }
-  readInputCard.style.display = 'none';
-  readViewCard.style.display = 'block';
+  var text = pages.join('\n\n').trim();
+  if (!text) throw new Error("Couldn't find any text in that PDF — it might be a scanned image with no text layer.");
+  return text;
 }
 
-btnStartReading.addEventListener('click', function(){
-  var text = readInputEl.value.trim();
-  readInputBannerEl.innerHTML = '';
-  if (!text){
-    readInputBannerEl.innerHTML = '<div class="banner warn">Paste or type something to read first.</div>';
-    return;
+/* Photo (JPG/PNG) text extraction via AI vision -- reuses the same claude.use("sample")
+   call the deeper writing check uses, just asking it to transcribe a photo instead of judge
+   a paragraph. Honest caveat: every other use of sample.json() in this app sends it a plain
+   text prompt -- this is the first place that also hands it an image, and whether this
+   Artifact runtime's sample call actually accepts one (and in this shape) hasn't been
+   confirmed. If it doesn't, this throws and the student sees a clear "photo reading isn't
+   available here" message rather than a silent failure. */
+async function extractImageText(file){
+  var sample = null;
+  try { sample = await claude.use("sample"); } catch(e){ sample = null; }
+  if (!sample) throw new Error("Photo reading isn't available here — try a .txt file or PDF instead.");
+  var dataUrl = await readFileAsDataURL(file);
+  var prompt = "Read every word of text visible in this photo of a page and transcribe it exactly as written, correcting nothing. " +
+    "Reply with ONLY a JSON object like {\"text\":\"the transcribed text here\"}. If a word is impossible to make out, use [?] in its place.";
+  var result;
+  try{
+    result = await sample.json(prompt, { modelTier: "complex", image: dataUrl });
+  }catch(e){
+    throw new Error("Photo reading isn't available here — try a .txt file or PDF instead.");
   }
-  if (countWords(text) > READ_MAX_WORDS){
-    readInputBannerEl.innerHTML = '<div class="banner warn">That’s over the 2000-word limit for the Read tab — try a shorter passage.</div>';
-    return;
-  }
-  startReading(text);
-  // Stretch-goal reading stats: log one entry per successful start, not per finish -- there's
-  // no reliable way to know a student actually finished a passage (chunk navigation can go
-  // backward and forward freely), so "started reading it" is the honest, simple signal used here.
-  state.readingSessions.push({ date: new Date().toISOString(), words: countWords(text) });
-  saveProgress();
-});
-
-btnClearRead.addEventListener('click', function(){
-  readInputEl.value = '';
-  updateReadWordcount();
-  readInputBannerEl.innerHTML = '';
-  readInputEl.focus();
-});
-
-btnBackToInput.addEventListener('click', function(){
-  stopReadSpeech();
-  readViewCard.style.display = 'none';
-  readInputCard.style.display = 'block';
-});
-
-/* ---------------- Read tab: speech controller ----------------
-   Independent from the Write tab's speak() on purpose -- that one is a fire-and-forget
-   "read this whole paragraph once" helper with no pause/resume/highlight state, and the
-   spec is explicit that it should stay untouched. This controller owns its own state
-   machine (idle/playing/paused) and speaks one chunk per SpeechSynthesisUtterance so a
-   chunk boundary is always a natural place to pause, change speed, or navigate. */
-var SPEECH_AVAILABLE = ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined');
-var readSpeedSelect = document.getElementById('readSpeed');
-var btnPlayPause = document.getElementById('btnPlayPause');
-var btnStopReading = document.getElementById('btnStopReading');
-var speechState = 'idle'; // 'idle' | 'playing' | 'paused'
-
-if (!SPEECH_AVAILABLE){
-  btnPlayPause.disabled = true;
-  btnStopReading.disabled = true;
-  readSpeedSelect.disabled = true;
+  var text = result && typeof result.text === 'string' ? result.text : null;
+  if (!text) throw new Error("Couldn't read any text from that photo — try a clearer picture.");
+  return text;
 }
 
-function getReadRate(){
-  var v = parseFloat(readSpeedSelect.value);
-  return (v === 0.75 || v === 1 || v === 1.25) ? v : 1;
+function setUploadedText(text){
+  editor.value = text;
+  updateEditorWordcount();
+  editor.focus();
 }
-function setPlayPauseLabel(){
-  btnPlayPause.textContent = speechState === 'playing' ? '⏸ Pause' : '▶ Play';
-}
-function clearWordHighlight(){
-  var prev = readPaneEl.querySelector('.word-highlight');
-  if (prev) prev.classList.remove('word-highlight');
-}
-// The browser reports charIndex relative to the utterance's own text, not the DOM, so
-// this walks the chunk's word spans in order and finds which one that index falls inside.
-function highlightWordAtCharIndex(chunkEl, chunkText, charIndex){
-  clearWordHighlight();
-  if (charIndex == null) return;
-  var words = chunkEl.querySelectorAll('.word');
-  var searchFrom = 0;
-  for (var i = 0; i < words.length; i++){
-    var w = words[i].textContent;
-    var idx = chunkText.indexOf(w, searchFrom);
-    if (idx === -1) idx = searchFrom;
-    if (charIndex >= idx && charIndex < idx + w.length){
-      words[i].classList.add('word-highlight');
+
+async function handleFileUpload(file){
+  var name = (file.name || '').toLowerCase();
+  var type = file.type || '';
+  showUploadBanner('info', 'Reading “' + file.name + '”…');
+  try{
+    var text;
+    if (type === 'text/plain' || /\.txt$/.test(name)){
+      text = await readFileAsText(file);
+    } else if (type === 'application/pdf' || /\.pdf$/.test(name)){
+      text = await extractPdfText(file);
+    } else if (/^image\//.test(type) || /\.(jpe?g|png)$/.test(name)){
+      text = await extractImageText(file);
+    } else {
+      showUploadBanner('warn', "That file type isn't supported yet — try a .txt file, a PDF, or a photo (.jpg/.png).");
       return;
     }
-    searchFrom = idx + w.length;
+    setUploadedText(text);
+    showUploadBanner('info', 'Loaded “' + file.name + '” (' + countWords(text) + (countWords(text)===1?' word':' words') + ').');
+  }catch(e){
+    showUploadBanner('warn', (e && e.message) ? e.message : ('Couldn’t read "' + file.name + '" — try a different file.'));
   }
 }
 
-function speakChunk(idx){
-  if (!SPEECH_AVAILABLE) return;
-  if (idx < 0 || idx >= readState.chunks.length){
-    speechState = 'idle';
-    setPlayPauseLabel();
-    clearWordHighlight();
-    return;
-  }
-  goToChunk(idx);
-  var chunkEl = readPaneEl.querySelectorAll('.read-chunk')[idx];
-  var text = readState.chunks[idx];
-  try{ window.speechSynthesis.cancel(); }catch(e){}
-  var u = new SpeechSynthesisUtterance(text);
-  u.rate = getReadRate();
-  // Word-level highlighting when a browser fires boundary events; when it doesn't (or
-  // fires none at all for this utterance), the chunk itself staying highlighted via
-  // goToChunk() above is the fallback -- the student never loses their place either way.
-  u.onboundary = function(ev){ highlightWordAtCharIndex(chunkEl, text, ev.charIndex); };
-  u.onend = function(){
-    clearWordHighlight();
-    if (speechState !== 'playing') return; // stopped or paused elsewhere while this was speaking
-    if (idx + 1 < readState.chunks.length) speakChunk(idx + 1);
-    else { speechState = 'idle'; setPlayPauseLabel(); }
-  };
-  u.onerror = function(){
-    // No installed voices, blocked autoplay, etc. -- fall back to silent chunk
-    // navigation rather than leaving the button stuck on "Pause" forever.
-    speechState = 'idle';
-    setPlayPauseLabel();
-    clearWordHighlight();
-  };
-  window.speechSynthesis.speak(u);
-}
-
-function stopReadSpeech(){
-  try{ window.speechSynthesis && window.speechSynthesis.cancel(); }catch(e){}
-  speechState = 'idle';
-  setPlayPauseLabel();
-  clearWordHighlight();
-}
-
-btnPlayPause.addEventListener('click', function(){
-  if (!SPEECH_AVAILABLE) return;
-  if (speechState === 'playing'){
-    try{ window.speechSynthesis.pause(); }catch(e){}
-    speechState = 'paused';
-    setPlayPauseLabel();
-  } else if (speechState === 'paused'){
-    try{ window.speechSynthesis.resume(); }catch(e){}
-    speechState = 'playing';
-    setPlayPauseLabel();
-  } else {
-    speechState = 'playing';
-    setPlayPauseLabel();
-    speakChunk(readState.currentChunk);
-  }
-});
-btnStopReading.addEventListener('click', function(){ stopReadSpeech(); });
-readSpeedSelect.addEventListener('change', function(){
-  // A rate change doesn't apply to an utterance already in flight, so the cleanest
-  // fix is to just restart the current chunk at the new rate.
-  if (speechState === 'playing' || speechState === 'paused'){
-    speechState = 'playing';
-    setPlayPauseLabel();
-    speakChunk(readState.currentChunk);
-  }
-});
-
-// Click-any-word-to-hear-it, the same pattern as the popover's "Hear it" hint on the
-// Write tab, but through this tab's own utterance rather than the shared speak() helper.
-function speakSingleWord(word){
-  if (!SPEECH_AVAILABLE || !word) return;
-  try{
-    window.speechSynthesis.cancel();
-    var u = new SpeechSynthesisUtterance(word);
-    u.rate = getReadRate();
-    window.speechSynthesis.speak(u);
-  }catch(e){}
-  if (speechState !== 'idle'){ speechState = 'idle'; setPlayPauseLabel(); clearWordHighlight(); }
-}
-readPaneEl.addEventListener('click', function(e){
-  var target = e.target.closest && e.target.closest('.word');
-  if (target) speakSingleWord(target.textContent);
-});
-readPaneEl.addEventListener('keydown', function(e){
-  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('word')){
-    e.preventDefault();
-    speakSingleWord(e.target.textContent);
-  }
-});
-
-/* ---------------- Read tab: sample passages, .txt upload, Send to Write ----------------
-   Three short placeholder passages so a student (or a judge) can try the Read tab with one
-   click instead of needing their own text handy first. Marked "(draft)" on the buttons
-   themselves since this is stand-in content, not a curated reading-level-graded set. */
-var SAMPLE_PASSAGE_SHORT = "Sea otters live along the rocky coasts of the Pacific Ocean, and they are some of the few animals known to use tools. When an otter finds a clam or a mussel, it often can't crack the shell with just its paws. So it dives down, grabs a flat rock from the seafloor, and carries the rock back up to the surface. Floating on its back, the otter balances the rock on its stomach like a small table and bangs the shell against it until the shell breaks open.";
-var SAMPLE_PASSAGE_MEDIUM = SAMPLE_PASSAGE_SHORT + "\n\nOtters are also famous for holding hands while they sleep. A group of otters floating together is called a raft, and forming a raft keeps the group from drifting apart in ocean currents overnight. Some otters wrap themselves in kelp, the long brown seaweed near the shore, so it can anchor them while they nap.";
-var SAMPLE_PASSAGE_LONG = SAMPLE_PASSAGE_MEDIUM + "\n\nUnlike most marine mammals, sea otters don't rely on blubber to stay warm. Instead, they have the densest fur of any animal on Earth, with roughly a million hairs packed into a single square inch of skin. That fur only works as insulation if it stays clean and full of trapped air, so an otter spends several hours a day grooming itself, combing its coat with its paws and blowing air back into the fur.\n\nOtters also play an outsized role in their ecosystem. Along much of the California coast, otters are the main predator of sea urchins, and sea urchins eat the base of kelp plants. In places where otters were wiped out by historical hunting, urchins multiplied unchecked and chewed through entire kelp forests. Bringing otters back to a stretch of coastline has, in several documented cases, allowed the kelp forest to grow back within just a few years.";
-
-function loadSample(text){
-  stopReadSpeech();
-  readInputEl.value = text;
-  updateReadWordcount();
-  readInputBannerEl.innerHTML = '';
-  readInputEl.focus();
-}
-document.getElementById('sampleShort').addEventListener('click', function(){ loadSample(SAMPLE_PASSAGE_SHORT); });
-document.getElementById('sampleMedium').addEventListener('click', function(){ loadSample(SAMPLE_PASSAGE_MEDIUM); });
-document.getElementById('sampleLong').addEventListener('click', function(){ loadSample(SAMPLE_PASSAGE_LONG); });
-
-// .txt upload: read the file client-side (no server round-trip, consistent with the rest of
-// this tab being $0 / no-network) and drop its text straight into the same textarea a pasted
-// passage would use, so every downstream check (word count, the 2000-word cap) applies identically
-// regardless of whether the text was typed, pasted, or uploaded.
-var readUploadEl = document.getElementById('readUpload');
-readUploadEl.addEventListener('change', function(){
-  var file = readUploadEl.files && readUploadEl.files[0];
-  readUploadEl.value = ''; // reset so choosing the same file again still fires 'change'
+var fileUploadEl = document.getElementById('fileUpload');
+fileUploadEl.addEventListener('change', function(){
+  var file = fileUploadEl.files && fileUploadEl.files[0];
+  fileUploadEl.value = ''; // reset so choosing the same file again still fires 'change'
   if (!file) return;
-  readInputBannerEl.innerHTML = '';
-  var reader = new FileReader();
-  reader.onload = function(){
-    var text = String(reader.result || '');
-    readInputEl.value = text;
-    updateReadWordcount();
-    if (countWords(text) > READ_MAX_WORDS){
-      readInputBannerEl.innerHTML = '<div class="banner warn">That file is over the 2000-word limit for the Read tab — trim it down before starting.</div>';
-    }
-    readInputEl.focus();
-  };
-  reader.onerror = function(){
-    readInputBannerEl.innerHTML = '<div class="banner warn">Couldn’t read that file — try a plain .txt file.</div>';
-  };
-  reader.readAsText(file);
-});
-
-// Send to Write: hands the whole passage over to the Write tab's editor, overwriting whatever
-// was there. Deliberately silent/no-confirmation -- a student moving text from Read to Write
-// is treated the same as if they'd just pasted it there themselves.
-var btnSendToWrite = document.getElementById('btnSendToWrite');
-btnSendToWrite.addEventListener('click', function(){
-  var text = readState.sourceText || readInputEl.value || '';
-  stopReadSpeech();
-  editor.value = text;
-  var words = countWords(text);
-  wordcountEl.textContent = words + (words===1?' word':' words');
-  var writeTab = document.querySelector('.tab[data-view="write"]');
-  if (writeTab) writeTab.click();
-  editor.focus();
+  handleFileUpload(file);
 });
 
 loadProgress();

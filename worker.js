@@ -23,6 +23,11 @@ const DEFAULT_MODEL = "gpt-5-mini";
 const ALLOWED_MODELS = ["gpt-5-mini", "gpt-5-nano"];
 const MAX_PROMPT_CHARS = 8000;     // guards against someone sending huge/abusive requests
 const MAX_TOKENS_CAP = 3000;       // hard ceiling regardless of what the client asks for
+// A data: URL for a photo upload (JPG/PNG) -- base64 runs about 4/3 the size of the raw
+// image, so this caps the *decoded* image at a few MB, which is plenty for a phone photo
+// of a page. Guards against someone POSTing a huge file straight at this endpoint (it's
+// public and unauthenticated) and running up cost/latency on a single request.
+const MAX_IMAGE_DATA_URL_CHARS = 7_000_000;
 // gpt-5-family models spend part of max_completion_tokens on invisible internal
 // reasoning before writing the visible reply -- for straightforward tasks like
 // ours (read a sentence, return small JSON) that reasoning is pure overhead and
@@ -61,11 +66,36 @@ export default {
     if (!prompt.trim()) {
       return json({ error: "empty_prompt" }, 400, cors);
     }
-    const model = typeof body.model === "string" && ALLOWED_MODELS.indexOf(body.model) !== -1 ? body.model : DEFAULT_MODEL;
+    // Optional: a photo upload (Write tab's "Upload a file" for a JPG/PNG) sends the image
+    // alongside the transcription prompt as a data: URL. Only plain image/jpeg and image/png
+    // data URLs are accepted -- anything else (wrong shape, wrong scheme, an SVG that could
+    // carry a script) is rejected outright rather than forwarded to OpenAI as-is.
+    let image = null;
+    if (typeof body.image === "string" && body.image.length) {
+      if (body.image.length > MAX_IMAGE_DATA_URL_CHARS) {
+        return json({ error: "image_too_large" }, 413, cors);
+      }
+      if (!/^data:image\/(png|jpe?g);base64,/.test(body.image)) {
+        return json({ error: "bad_image" }, 400, cors);
+      }
+      image = body.image;
+    }
+    // Vision requests always go to gpt-5-mini regardless of what's requested -- gpt-5-nano
+    // isn't a vision-capable model, and this endpoint is public/unauthenticated so the
+    // client's requested model can't be trusted to be sensible on its own.
+    const model = image
+      ? "gpt-5-mini"
+      : (typeof body.model === "string" && ALLOWED_MODELS.indexOf(body.model) !== -1 ? body.model : DEFAULT_MODEL);
     const maxTokens = Math.min(
       Number.isFinite(body.maxTokens) ? Math.max(1, Math.floor(body.maxTokens)) : 800,
       MAX_TOKENS_CAP
     );
+    const messageContent = image
+      ? [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: image } },
+        ]
+      : prompt;
 
     let openaiResp;
     try {
@@ -82,7 +112,7 @@ export default {
           // clear "unsupported_parameter" error if you get this wrong).
           max_completion_tokens: maxTokens,
           reasoning_effort: REASONING_EFFORT,
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content: messageContent }],
         }),
       });
     } catch (e) {
