@@ -61,6 +61,36 @@ async function openApp(page, initArg){
   await page.waitForTimeout(150);
 }
 
+// For the two-pass ensemble tests (TC-12): each sample.json() call gets the NEXT entry from
+// `steps`, cycling if there are more calls than steps. An entry is one of:
+//   {items: [...]}      -- a normal successful reply with those AI items
+//   {reject: true}       -- that pass's sample.json() call rejects (simulates it failing outright)
+// This lets a single check's two concurrent runAIPass passes behave differently from each
+// other, which the single static mockSample() above can't express.
+function mockSampleSequential(){
+  return (steps) => {
+    var i = 0;
+    window.claude = {
+      use: async function(name){
+        if (name === 'sample') return { json: async function(prompt, opts){
+          window.__lastPrompt = prompt;
+          var step = steps[i % steps.length]; i++;
+          if (step.reject) throw new Error("simulated sample.json() failure");
+          return step.items;
+        } };
+        if (name === 'db') return { doc: function(){ return { get: async()=>({exists:false}), set: async()=>{} }; } };
+        return null;
+      }
+    };
+  };
+}
+
+async function openAppSequential(page, steps){
+  await page.addInitScript(mockSampleSequential(), steps);
+  await page.goto('file://' + path.resolve(__dirname, 'second_look.html'));
+  await page.waitForTimeout(150);
+}
+
 async function markTexts(page){
   return await page.$$eval('#reviewed mark', els => els.map(e => e.textContent));
 }
@@ -170,6 +200,64 @@ async function revealFor(page, wordText){
       }
     }
     if (errors.length) fail("TC-7 page errors: " + errors.join('; '));
+    await page.close();
+  }
+
+  // ---------- TC-12 (Artifact-build half): two-pass ensemble union + failure tolerance ----------
+  // Mirrors test_context_fix_public.js's TC-12 for the sample.json() path in build.py.
+  {
+    // (a) two passes catch two different, non-overlapping mistakes -- both must survive.
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    await openAppSequential(page, [
+      { items: [{original:"dog", suggestion:"canine", type:"word choice", explanation:"e"}] },
+      { items: [{original:"cat", suggestion:"feline", type:"word choice", explanation:"e"}] }
+    ]);
+    await page.fill('#editor', 'I have a dog. I have a cat.');
+    await page.click('#btnCheck');
+    await page.waitForTimeout(400);
+    const marksA = await markTexts(page);
+    console.log("\n=== TC-12a (Artifact): union of two non-overlapping passes ===");
+    console.log({ marksA });
+    if (!marksA.includes('dog')) fail("TC-12a: pass 1's catch ('dog') should survive the union");
+    if (!marksA.includes('cat')) fail("TC-12a: pass 2's catch ('cat'), which pass 1 never mentioned, should ALSO survive the union");
+    if (errors.length) fail("TC-12a page errors: " + errors.join('; '));
+    await page.close();
+  }
+  {
+    // (b) pass 1 fails outright but pass 2 succeeds -- must still surface pass 2's finding
+    // and must NOT show the "hit a snag" failure banner.
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    await openAppSequential(page, [
+      { reject: true },
+      { items: [{original:"cat", suggestion:"feline", type:"word choice", explanation:"e"}] }
+    ]);
+    await page.fill('#editor', 'I have a cat.');
+    await page.click('#btnCheck');
+    await page.waitForTimeout(400);
+    const marksB = await markTexts(page);
+    const bannerB = await page.textContent('#banners').catch(() => '');
+    console.log("\n=== TC-12b (Artifact): one pass fails outright, the other still gets used ===");
+    console.log({ marksB, bannerB: (bannerB || '').trim() });
+    if (!marksB.includes('cat')) fail("TC-12b: pass 2's catch should still surface even though pass 1's sample.json() call rejected");
+    if (/snag/i.test(bannerB || '')) fail("TC-12b: one pass failing should NOT trigger the 'hit a snag' banner when the other pass succeeded, got: " + bannerB);
+    if (errors.length) fail("TC-12b page errors: " + errors.join('; '));
+    await page.close();
+  }
+  {
+    // (c) BOTH passes fail -- the existing "hit a snag" fallback must still fire.
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    await openAppSequential(page, [{ reject: true }, { reject: true }]);
+    await page.fill('#editor', 'I have a cat.');
+    await page.click('#btnCheck');
+    await page.waitForTimeout(400);
+    const bannerC = await page.textContent('#banners').catch(() => '');
+    console.log("\n=== TC-12c (Artifact): both passes fail -> existing 'hit a snag' fallback still fires ===");
+    console.log({ bannerC: (bannerC || '').trim() });
+    if (!/snag/i.test(bannerC || '')) fail("TC-12c: when BOTH passes fail, the deeper check should still show the 'hit a snag' banner, got: " + bannerC);
+    if (errors.length) fail("TC-12c page errors: " + errors.join('; '));
     await page.close();
   }
 

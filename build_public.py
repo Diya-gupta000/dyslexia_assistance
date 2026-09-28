@@ -233,8 +233,37 @@ old_run_ai_pass = '''async function runAIPass(text, localFlags){
   try{
     var hintFlags = localFlags.filter(function(f){ return f.end <= aiText.length; });
     var prompt = buildPrompt(aiText, hintFlags);
-    var result = await sample.json(prompt, { modelTier: "complex" });
-    if (!Array.isArray(result)) throw new Error("bad shape");'''
+    // Run two independent passes over the same paragraph and union whatever either one
+    // caught, instead of trusting a single call. The CONFIRM/REPLACE/CLEAR hints above give
+    // the model a reliable nudge for spots the local checker already flagged, but a "real
+    // word used in the wrong context" mistake the local checker had NO hint for at all (e.g.
+    // "win" instead of "when" -- a correctly-spelled word, not on the confusable-pairs list,
+    // so nothing points the model there) depends entirely on the model spontaneously noticing
+    // it while freely reading the paragraph. That's a single probabilistic read: the model can
+    // genuinely catch it on one pass and miss the exact same word on another, purely from
+    // sampling variance, not because the word is unusually hard. Two independent reads
+    // meaningfully cut down that kind of miss for a per-check cost of a fraction of a cent
+    // (see recordUsageCost in the public build), so it's a good trade. The two calls run
+    // concurrently (same wall-clock as one), and if either one fails outright, we still use
+    // whatever the other found rather than discarding both -- the catch block below only
+    // fires if BOTH passes fail.
+    var passResults = await Promise.allSettled([
+      sample.json(prompt, { modelTier: "complex" }),
+      sample.json(prompt, { modelTier: "complex" })
+    ]);
+    var result = [];
+    var anySucceeded = false, anyPartial = false, lastError = null;
+    passResults.forEach(function(pr){
+      if (pr.status === 'fulfilled' && Array.isArray(pr.value)){
+        anySucceeded = true;
+        result = result.concat(pr.value);
+        if (pr.value.partial) anyPartial = true;
+      } else {
+        lastError = pr.status === 'rejected' ? pr.reason : new Error("bad shape");
+      }
+    });
+    if (!anySucceeded) throw (lastError || new Error("bad shape"));
+    result.partial = anyPartial;'''
 new_run_ai_pass = '''async function runAIPass(text, localFlags){
   if (!aiConfigured()){
     setStatus("Deeper AI check isn't set up yet — showing the instant results only.");
@@ -246,8 +275,31 @@ new_run_ai_pass = '''async function runAIPass(text, localFlags){
   try{
     var hintFlags = localFlags.filter(function(f){ return f.end <= aiText.length; });
     var prompt = buildPrompt(aiText, hintFlags);
-    var result = await callAI(prompt, "gpt-5-mini", 1200);
-    if (!Array.isArray(result)) throw new Error("bad shape");'''
+    // Run two independent passes over the same paragraph and union whatever either one
+    // caught, instead of trusting a single call. See build.py's runAIPass for why: a "real
+    // word used in the wrong context" mistake the local checker had NO hint for at all
+    // depends entirely on the model spontaneously noticing it, which is a single probabilistic
+    // read -- two independent reads meaningfully cut down that kind of miss for a per-check
+    // cost of a fraction of a cent (recordUsageCost above records both calls). They run
+    // concurrently, and if either fails outright we still use whatever the other found --
+    // the catch block below only fires if BOTH passes fail.
+    var passResults = await Promise.allSettled([
+      callAI(prompt, "gpt-5-mini", 1200),
+      callAI(prompt, "gpt-5-mini", 1200)
+    ]);
+    var result = [];
+    var anySucceeded = false, anyPartial = false, lastError = null;
+    passResults.forEach(function(pr){
+      if (pr.status === 'fulfilled' && Array.isArray(pr.value)){
+        anySucceeded = true;
+        result = result.concat(pr.value);
+        if (pr.value.partial) anyPartial = true;
+      } else {
+        lastError = pr.status === 'rejected' ? pr.reason : new Error("bad shape");
+      }
+    });
+    if (!anySucceeded) throw (lastError || new Error("bad shape"));
+    result.partial = anyPartial;'''
 assert old_run_ai_pass in body_content, "runAIPass header not found"
 body_content = body_content.replace(old_run_ai_pass, new_run_ai_pass, 1)
 

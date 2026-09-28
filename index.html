@@ -1605,8 +1605,31 @@ async function runAIPass(text, localFlags){
   try{
     var hintFlags = localFlags.filter(function(f){ return f.end <= aiText.length; });
     var prompt = buildPrompt(aiText, hintFlags);
-    var result = await callAI(prompt, "gpt-5-mini", 1200);
-    if (!Array.isArray(result)) throw new Error("bad shape");
+    // Run two independent passes over the same paragraph and union whatever either one
+    // caught, instead of trusting a single call. See build.py's runAIPass for why: a "real
+    // word used in the wrong context" mistake the local checker had NO hint for at all
+    // depends entirely on the model spontaneously noticing it, which is a single probabilistic
+    // read -- two independent reads meaningfully cut down that kind of miss for a per-check
+    // cost of a fraction of a cent (recordUsageCost above records both calls). They run
+    // concurrently, and if either fails outright we still use whatever the other found --
+    // the catch block below only fires if BOTH passes fail.
+    var passResults = await Promise.allSettled([
+      callAI(prompt, "gpt-5-mini", 1200),
+      callAI(prompt, "gpt-5-mini", 1200)
+    ]);
+    var result = [];
+    var anySucceeded = false, anyPartial = false, lastError = null;
+    passResults.forEach(function(pr){
+      if (pr.status === 'fulfilled' && Array.isArray(pr.value)){
+        anySucceeded = true;
+        result = result.concat(pr.value);
+        if (pr.value.partial) anyPartial = true;
+      } else {
+        lastError = pr.status === 'rejected' ? pr.reason : new Error("bad shape");
+      }
+    });
+    if (!anySucceeded) throw (lastError || new Error("bad shape"));
+    result.partial = anyPartial;
     // Starts empty on purpose, NOT seeded from the existing local flags: a local flag's
     // own span is exactly where an AI item upgrading that same spot needs to be found,
     // and for a word that appears only once in the paragraph (the common case), seeding
