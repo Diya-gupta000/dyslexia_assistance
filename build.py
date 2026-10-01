@@ -1,6 +1,7 @@
 import json
 
 wordlist = open('wordlist_js.txt').read().strip()
+common_words = open('common_words_js.txt').read().strip()
 
 # Deliberately excludes high-frequency function words (to, of, was, are, no, from)
 # even where they have a classic confusable partner (too/two, have, saw, our, know/now, form) --
@@ -519,15 +520,35 @@ button.btn.mic.listening{background:var(--warn); border-color:var(--warn); color
 (function(){
 "use strict";
 
-/* ---------------- data: local dictionary + confusable pairs ---------------- */
+/* ---------------- data: local dictionary + confusable pairs ----------------
+   Two word lists, used for two different jobs:
+   - DICTIONARY/DICT_SET is the full, comprehensive English wordlist (~73k
+     words). It answers "is this a real word at all" -- used to decide
+     whether to flag something as unknown in the first place, and to gate
+     whether a typed fix (or the AI-context-check escalation) counts as a
+     real word. A small list here means ordinary words ("tutor", "mentor")
+     get wrongly flagged as unknown, which is exactly the bug this file
+     used to have.
+   - COMMON_WORDS is the older, much smaller curated list (~7k words), kept
+     around specifically to drive the SUGGESTION engine below (BY_LENGTH /
+     PHONETIC_MAP / bestLocalSuggestion's candidate pool). Guessing a fix
+     for a garbled spelling should be biased toward the common, everyday
+     word a student actually meant -- against the full 73k-word dictionary,
+     a garbled word is often just as close (or closer) to some obscure
+     dictionary entry (e.g. "nitmers" -> "niter") as to the word the student
+     meant ("nightmares"), which makes suggestions noisier, not better. Using
+     the smaller common-word list only for suggestions keeps guesses sane
+     while DICTIONARY still prevents real-but-uncommon words from being
+     flagged as unknown in the first place. */
 var DICTIONARY = __WORDLIST__;
 var DICT_SET = new Set(DICTIONARY);
+var COMMON_WORDS = __COMMON_WORDLIST__;
 var CONFUSABLE_GROUPS = __CONFUSABLE__;
 var CONFUSABLE_MAP = {};
 CONFUSABLE_GROUPS.forEach(function(g){ g.forEach(function(w){ CONFUSABLE_MAP[w] = g; }); });
 
 var BY_LENGTH = {};
-DICTIONARY.forEach(function(w){
+COMMON_WORDS.forEach(function(w){
   var L = w.length;
   (BY_LENGTH[L] = BY_LENGTH[L] || []).push(w);
 });
@@ -541,7 +562,7 @@ function phoneticKey(w){
   return s;
 }
 var PHONETIC_MAP = {};
-DICTIONARY.forEach(function(w){
+COMMON_WORDS.forEach(function(w){
   var k = phoneticKey(w);
   (PHONETIC_MAP[k] = PHONETIC_MAP[k] || []).push(w);
 });
@@ -2367,6 +2388,6 @@ loadFeedback();
 </script>
 """
 
-html = html.replace("__WORDLIST__", wordlist).replace("__CONFUSABLE__", confusable_json)
+html = html.replace("__WORDLIST__", wordlist).replace("__COMMON_WORDLIST__", common_words).replace("__CONFUSABLE__", confusable_json)
 open("second_look.html","w").write(html)
 print("bytes:", len(html))
