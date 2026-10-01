@@ -734,13 +734,28 @@ function buildPrompt(text, localFlags){
 
 function locateSnippet(text, snippet, usedRanges){
   if (!snippet) return null;
+  // A word character for boundary purposes -- letters, digits, and the apostrophe inside
+  // a contraction ("shes", "it's"). Used below so a short flagged snippet can never silently
+  // latch onto letters buried inside an unrelated, longer word.
+  function isWordChar(ch){ return !!ch && /[A-Za-z0-9']/.test(ch); }
   function tryFind(hay, needle){
+    var needleStartsWord = isWordChar(needle[0]);
+    var needleEndsWord = isWordChar(needle[needle.length-1]);
     var from = 0;
     while (true){
       var idx = hay.indexOf(needle, from);
       if (idx === -1) return -1;
+      // Reject a match that isn't aligned to a whole-word boundary on either side. Without
+      // this, when two AI passes both (correctly) catch the SAME real occurrence of a short
+      // word like "no", the second item's search -- having found the real occurrence already
+      // claimed in usedRanges -- keeps scanning and can land on "no" hiding inside an
+      // unrelated word like "not", splitting it with a bogus underline instead of being
+      // recognized as "this duplicate confirmation has nowhere left to go, drop it."
+      var before = idx > 0 ? hay[idx-1] : '';
+      var after = idx+needle.length < hay.length ? hay[idx+needle.length] : '';
+      var boundaryOk = (!needleStartsWord || !isWordChar(before)) && (!needleEndsWord || !isWordChar(after));
       var overlaps = usedRanges.some(function(r){ return idx < r.end && idx+needle.length > r.start; });
-      if (!overlaps) return idx;
+      if (boundaryOk && !overlaps) return idx;
       from = idx+1;
     }
   }
