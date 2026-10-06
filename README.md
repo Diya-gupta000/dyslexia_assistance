@@ -1,10 +1,26 @@
-# Second Look
+# Second Look — Read + Count
 
-**A writing checker built for dyslexic students** — it catches not just misspelled words, but the harder category of mistake dyslexic writers hit constantly: real, correctly-spelled words used in the wrong place (writing "bet" instead of "but," or "licker" instead of "like"). A plain spell-checker can't catch these, because nothing is technically misspelled.
+**An early-learning accessibility platform for children who process words or numbers differently.** Second Look now pairs the original dyslexia-friendly writing checker with an adaptive number-sense experience.
+
+- **Words** catches misspellings and harder real-word mix-ups, then gives hints so the student fixes the writing themselves.
+- **Numbers** offers a short Number Check, a four-skill Number Sense Map, explainable adaptive practice, three playable interventions, and a parent/teacher dashboard.
+
+The Numbers mode records in-app accuracy, response time, and number-line error patterns across dot sense, symbolic magnitude, quantity–numeral mapping, and number-line estimation. It never reports a dyscalculia probability or presents itself as a diagnostic instrument.
 
 **Live site:** [diya-gupta000.github.io/dyslexia_assistance](https://diya-gupta000.github.io/dyslexia_assistance/)
 
-Instead of silently auto-correcting, Second Look gives a hint and lets the student type (or say) their own fix — the goal is building the student's own skill, not just cleaning up their text.
+Instead of silently fixing an answer, Second Look helps the learner notice a pattern and try again — the goal is building the learner's own skill, not replacing it.
+
+## Numbers experience
+
+- A home choice between Words and Numbers, with the original writing experience intact.
+- A working 12-trial Number Check spanning four foundational numerical processes.
+- A Number Sense Map with child-safe observations: Strong, Developing, and Needs practice.
+- An inspectable adaptation rule that recommends the activity connected to the learner's lowest relative skill.
+- Three complete practice loops: Number Trail, Number Line Adventure, and Quantity Battle.
+- An adult dashboard with skill metrics, pattern summaries, session history, and change over time.
+- On-device persistence, a sample-data tour, responsive design, keyboard focus states, and reduced-motion support.
+- A research explainer with primary-source links and explicit non-diagnostic boundaries.
 
 ---
 
@@ -35,14 +51,17 @@ Flagged words open a popup with two hint levels ("Hear it" reads it aloud, "Show
 
 | File | What it is |
 |---|---|
-| `index.html` | The entire site — HTML/CSS/JS in one file. Static, hostable anywhere. |
+| `index.html` | The generated public site shell and the complete Words experience. |
+| `numbers.css` | Shared platform launcher and responsive Numbers-mode visual system. |
+| `numbers-domain.js` | Pure scoring, skill-map, and recommendation logic. |
+| `numbers.js` | Number Check, practice games, dashboard, research view, and local persistence. |
 | `worker.js` | The Cloudflare Worker backend. Holds the OpenAI API key server-side and proxies the AI check; the browser never sees the key. |
 | `wrangler.toml` | Cloudflare Worker config (used by the `wrangler` CLI to deploy `worker.js`). |
 | `README-deploy.md` | Full step-by-step deployment guide — get an OpenAI key, deploy the Worker, point the site at it, and host the static file. Start here if you want to run your own copy. |
 
 ## Running it yourself
 
-The local spelling check works the moment you open `index.html` in a browser — no setup, no backend, no key. The deeper AI check needs your own Cloudflare Worker and OpenAI API key, since it's billed per use to whoever owns that key; see **[README-deploy.md](README-deploy.md)** for the full walkthrough (roughly: deploy `worker.js` to Cloudflare with `wrangler`, put your OpenAI key in as a secret, then set `WORKER_URL` near the top of `index.html`'s script to your Worker's address).
+The Numbers mode and local spelling check work with no backend or API key. Run `python3 -m http.server 8000` and open `http://localhost:8000`, or use `npm run check` to rebuild the generated files and run the scoring tests. The deeper Words AI check needs the existing Cloudflare Worker and OpenAI API key; see **[README-deploy.md](README-deploy.md)**.
 
 ## Cost & abuse guardrails
 
@@ -65,7 +84,7 @@ The full engineering write-up — every bug hit, how each was actually diagnosed
 
 ## Tech stack
 
-Vanilla HTML/CSS/JS on the frontend (no build step, no framework), a Cloudflare Worker for the backend proxy, and OpenAI's `gpt-5-mini`/`gpt-5-nano` for the AI layer. Hosted on GitHub Pages.
+Vanilla HTML/CSS/JS on the frontend, a small Python generation step for the Words bundle, a Cloudflare Worker for the optional writing AI proxy, and GitHub Pages hosting. The Numbers scoring and adaptation logic are deterministic and run entirely in the browser.
 
 ## Credits
 

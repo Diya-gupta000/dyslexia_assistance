@@ -1,2 +1,4 @@
 .wrangler/
 node_modules/
+public_index.html
+cloudflare-dist/

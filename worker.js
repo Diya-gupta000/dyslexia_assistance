@@ -37,7 +37,7 @@ const REASONING_EFFORT = "minimal";
 
 export default {
   async fetch(request, env) {
-    const cors = corsHeaders(env);
+    const cors = corsHeaders(env, request);
 
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: cors });
@@ -148,17 +148,23 @@ export default {
   },
 };
 
-function corsHeaders(env) {
-  // Default is wide open (*) so this works the moment you deploy it. Once
-  // you know the real domain your site lives on, set ALLOWED_ORIGIN to it
-  // (Cloudflare dashboard -> your Worker -> Settings -> Variables) so other
-  // sites can't quietly ride on your API key by calling this Worker from
-  // their own pages.
-  const origin = env.ALLOWED_ORIGIN || "*";
+function corsHeaders(env, request) {
+  // ALLOWED_ORIGIN accepts one origin or a comma-separated allow-list. Return the
+  // requesting origin only when it is explicitly allowed; otherwise the browser
+  // receives the first configured origin and blocks the response.
+  const allowed = (env.ALLOWED_ORIGIN || "*")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const requestOrigin = request.headers.get("Origin") || "";
+  const origin = allowed.includes("*")
+    ? "*"
+    : (allowed.includes(requestOrigin) ? requestOrigin : allowed[0]);
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    "Vary": "Origin",
   };
 }
 
