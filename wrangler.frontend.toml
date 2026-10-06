@@ -1,0 +1,6 @@
+name = "second-look"
+compatibility_date = "2026-10-05"
+
+[assets]
+directory = "./cloudflare-dist"
+not_found_handling = "single-page-application"
