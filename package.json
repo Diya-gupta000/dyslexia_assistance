@@ -1,0 +1,11 @@
+{
+  "name": "second-look",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Accessible, adaptive support for learners who process words or numbers differently.",
+  "scripts": {
+    "build": "python3 build.py && python3 build_public.py && cp public_index.html index.html",
+    "test": "node --test test/numbers-domain.test.js && node test_context_fix_parser.js",
+    "check": "npm run build && npm test"
+  }
+}

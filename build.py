@@ -43,10 +43,11 @@ confusable_groups = [
 confusable_json = json.dumps(confusable_groups, separators=(',',':'))
 
 html = r"""<title>Second Look</title>
-<meta name="description" content="A dyslexia-friendly writing checker that gives hints instead of fixes, reads suggestions aloud, and tracks a student's progress over time.">
+<meta name="description" content="Second Look supports children who process words or numbers differently with a dyslexia-friendly writing coach, a playful number-sense check, and adaptive practice.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Baloo+2:wght@500;600;700;800&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="numbers.css">
 <style>
 :root{
   /* Base text/background follow British Dyslexia Association guidance: dark charcoal on a
@@ -378,14 +379,19 @@ button.btn.mic.listening{background:var(--warn); border-color:var(--warn); color
 
 <div class="wrap">
   <header class="top">
-    <div class="brand">
-      <div class="mark">✎</div>
+    <button class="brand brand-button" id="brandHome" type="button" aria-label="Second Look home">
+      <div class="mark" aria-hidden="true">2L</div>
       <div>
         <h1>Second Look</h1>
-        <p>Catches mistakes, teaches you to fix them yourself.</p>
+        <p id="brandTagline">Words and numbers, understood differently.</p>
       </div>
-    </div>
-    <div class="tabs" role="tablist">
+    </button>
+    <nav class="product-switch" aria-label="Choose an area">
+      <button type="button" data-mode="home" aria-current="page">Home</button>
+      <button type="button" data-mode="words">Words</button>
+      <button type="button" data-mode="numbers">Numbers</button>
+    </nav>
+    <div class="tabs" id="wordTabs" role="tablist">
       <button class="tab" role="tab" aria-selected="true" data-view="write">Write</button>
       <button class="tab" role="tab" aria-selected="false" data-view="progress">My Progress</button>
     </div>
@@ -406,6 +412,27 @@ button.btn.mic.listening{background:var(--warn); border-color:var(--warn); color
       </div>
     </div>
   </header>
+
+  <div id="view-home" class="view">
+    <section class="home-hero" aria-labelledby="homeTitle">
+      <div class="home-copy">
+        <span class="home-kicker">READ · COUNT · GROW</span>
+        <h2 id="homeTitle">Every learner deserves a second look.</h2>
+        <p>Support for children who process words or numbers differently—built to notice patterns, celebrate strengths, and choose the next helpful step.</p>
+        <div class="home-trust"><span>✓ Private by default</span><span>✓ No diagnosis or labels</span><span>✓ Practice adapts to the learner</span></div>
+      </div>
+      <div class="home-orbit" aria-hidden="true"><span>3</span><i></i><span>7</span><b>look<br>again</b><span>A</span><i></i><span>B</span></div>
+    </section>
+    <section class="mode-grid" aria-label="Choose words or numbers">
+      <button class="mode-card mode-words" type="button" data-mode="words">
+        <span class="mode-icon" aria-hidden="true">Aa</span><span class="mode-copy"><small>READING &amp; WRITING</small><strong>Words</strong><em>Find tricky spelling and word mix-ups, then learn to fix them yourself.</em><span class="mode-link">Open Words <b>→</b></span></span>
+      </button>
+      <button class="mode-card mode-numbers" type="button" data-mode="numbers">
+        <span class="mode-icon" aria-hidden="true">1·2·3</span><span class="mode-copy"><small>NUMBER SENSE</small><strong>Numbers</strong><em>Discover how quantities make sense to you, then build skills through play.</em><span class="mode-link">Open Numbers <b>→</b></span></span>
+      </button>
+    </section>
+    <p class="home-disclaimer"><strong>Second Look is a learning support tool, not a diagnostic test.</strong> It highlights practice patterns and keeps results on this device.</p>
+  </div>
 
   <div id="view-write" class="view active">
     <div class="card">
@@ -476,6 +503,10 @@ button.btn.mic.listening{background:var(--warn); border-color:var(--warn); color
       <h3>Suggestions you reported</h3>
       <div class="feedback-list" id="feedbackSummary"></div>
     </div>
+  </div>
+
+  <div id="view-numbers" class="view">
+    <div id="numbersApp" aria-live="polite"></div>
   </div>
 </div>
 
@@ -2401,6 +2432,8 @@ loadProgress();
 loadFeedback();
 })();
 </script>
+<script src="numbers-domain.js"></script>
+<script src="numbers.js"></script>
 """
 
 html = html.replace("__WORDLIST__", wordlist).replace("__COMMON_WORDLIST__", common_words).replace("__CONFUSABLE__", confusable_json)
