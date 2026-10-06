@@ -168,7 +168,7 @@
       return '<span class="task-badge">Number duel</span><h2 style="margin-top:12px">Tap the bigger number.</h2><p>Which numeral represents more?</p><div class="duel-row"><button class="choice-card wide" type="button" data-answer="'+trial.left+'">'+trial.left+'</button><span class="duel-vs">OR</span><button class="choice-card wide" type="button" data-answer="'+trial.right+'">'+trial.right+'</button></div>';
     }
     if (trial.skill === 'mapping'){
-      return '<span class="task-badge">Dots vs. digits</span><h2 style="margin-top:12px">Which side shows more?</h2><p>Connect the amount you see with the number you read.</p><div class="duel-row"><button class="choice-card wide" type="button" data-answer="dots">'+dots(trial.dots,true)+'<span class="choice-label">DOTS</span></button><span class="duel-vs">OR</span><button class="choice-card wide" type="button" data-answer="numeral">'+trial.numeral+'<span class="choice-label">NUMERAL</span></button></div>';
+      return '<span class="task-badge">Compare quantities</span><h2 style="margin-top:12px">Which amount is greater?</h2><p>Count the dots on the left. Compare that amount with the number on the right. Tap the greater amount.</p><div class="duel-row"><button class="choice-card wide" type="button" data-answer="dots">'+dots(trial.dots,true)+'<span class="choice-label">DOT GROUP</span></button><span class="duel-vs">OR</span><button class="choice-card wide" type="button" data-answer="numeral"><span class="representation-value">'+trial.numeral+'</span><span class="choice-label">NUMBER '+trial.numeral+'</span></button></div>';
     }
     return '<span class="task-badge">Number line rescue</span><h2 style="margin-top:12px">Where does '+trial.target+' live?</h2><p>Tap the place on the line that feels right.</p><div class="number-line-wrap"><button type="button" class="number-track" data-number-line data-min="'+trial.min+'" data-max="'+trial.max+'" aria-label="Place '+trial.target+' on a number line from '+trial.min+' to '+trial.max+'"></button></div>';
   }
@@ -322,12 +322,12 @@
   }
 
   function representation(value,type){
-    return type === 'dots' ? dots(value,true) : '<span>'+value+'</span>';
+    return type === 'dots' ? dots(value,true)+'<span class="choice-label">DOT GROUP</span>' : '<span class="representation-value">'+value+'</span><span class="choice-label">NUMBER '+value+'</span>';
   }
 
   function renderBattle(){
     var round = game.rounds[game.index];
-    gameFrame('Quantity Battle',(game.index+1)+' of '+game.rounds.length,'<div class="check-card" style="min-height:350px"><span class="task-badge">Choose more</span><h2 style="margin-top:12px">Which card wins?</h2><p>Tap the side that represents the larger amount.</p><div class="duel-row"><button class="choice-card wide" data-game-answer="left" type="button">'+representation(round.l,round.lr)+'</button><span class="duel-vs">VS</span><button class="choice-card wide" data-game-answer="right" type="button">'+representation(round.r,round.rr)+'</button></div><p class="encouragement" id="gameFeedback"></p></div>');
+    gameFrame('Quantity Battle',(game.index+1)+' of '+game.rounds.length,'<div class="check-card" style="min-height:350px"><span class="task-badge">Compare quantities</span><h2 style="margin-top:12px">Which amount is greater?</h2><p>Count the dots if you need to. Tap the card with the greater amount.</p><div class="duel-row"><button class="choice-card wide" data-game-answer="left" type="button">'+representation(round.l,round.lr)+'</button><span class="duel-vs">OR</span><button class="choice-card wide" data-game-answer="right" type="button">'+representation(round.r,round.rr)+'</button></div><p class="encouragement" id="gameFeedback"></p></div>');
     game.startedAt = performance.now();
   }
 

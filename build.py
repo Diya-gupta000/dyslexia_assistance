@@ -47,7 +47,7 @@ html = r"""<title>Second Look</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Baloo+2:wght@500;600;700;800&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="numbers.css?v=3">
+<link rel="stylesheet" href="numbers.css?v=4">
 <style>
 :root{
   /* Base text/background follow British Dyslexia Association guidance: dark charcoal on a
@@ -2432,8 +2432,8 @@ loadProgress();
 loadFeedback();
 })();
 </script>
-<script src="numbers-domain.js?v=3"></script>
-<script src="numbers.js?v=3"></script>
+<script src="numbers-domain.js?v=4"></script>
+<script src="numbers.js?v=4"></script>
 """
 
 html = html.replace("__WORDLIST__", wordlist).replace("__COMMON_WORDLIST__", common_words).replace("__CONFUSABLE__", confusable_json)
