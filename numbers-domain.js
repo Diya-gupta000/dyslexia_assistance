@@ -128,6 +128,53 @@
     return Object.assign({ id: gameId, targetSkill: skill, skillLabel: SKILLS[skill].label }, GAME_META[gameId]);
   }
 
+  function nextPracticeLevel(sessions, gameId){
+    var history = (Array.isArray(sessions) ? sessions : []).filter(function(item){
+      return item && item.game === gameId;
+    });
+    if (!history.length) return 1;
+    var last = history[history.length - 1];
+    var level = clamp(Number(last.level) || 1, 1, 3);
+    if (last.fit === 'too-easy') return clamp(level + 1, 1, 3);
+    if (last.fit === 'too-hard') return clamp(level - 1, 1, 3);
+    if (Number(last.score) >= 80) return clamp(level + 1, 1, 3);
+    if (Number(last.score) < 50) return clamp(level - 1, 1, 3);
+    return level;
+  }
+
+  function gamePlan(gameId, level){
+    level = clamp(Number(level) || 1, 1, 3);
+    if (gameId === 'number-trail'){
+      return { level:level, goal:[10,20,30][level-1], spinnerMax:[3,4,5][level-1] };
+    }
+    if (gameId === 'number-line'){
+      var lineRounds = [
+        [{target:2,min:0,max:10},{target:6,min:0,max:10},{target:4,min:0,max:10},{target:8,min:0,max:10},{target:7,min:0,max:10}],
+        [{target:4,min:0,max:20},{target:13,min:0,max:20},{target:17,min:0,max:20},{target:8,min:0,max:20},{target:15,min:0,max:20}],
+        [{target:16,min:0,max:50},{target:37,min:0,max:50},{target:28,min:0,max:50},{target:64,min:0,max:100},{target:83,min:0,max:100}]
+      ];
+      return { level:level, rounds:lineRounds[level-1] };
+    }
+    var battleRounds = [
+      [{l:3,r:7,lr:'dots',rr:'dots'},{l:8,r:4,lr:'dots',rr:'dots'},{l:2,r:6,lr:'number',rr:'number'},{l:9,r:5,lr:'number',rr:'number'},{l:4,r:8,lr:'dots',rr:'number'}],
+      [{l:6,r:9,lr:'dots',rr:'number'},{l:12,r:7,lr:'number',rr:'dots'},{l:8,r:11,lr:'dots',rr:'number'},{l:14,r:9,lr:'number',rr:'dots'},{l:13,r:16,lr:'number',rr:'number'}],
+      [{l:14,r:16,lr:'number',rr:'number'},{l:18,r:15,lr:'number',rr:'number'},{l:17,r:19,lr:'dots',rr:'number'},{l:21,r:18,lr:'number',rr:'dots'},{l:24,r:22,lr:'number',rr:'number'}]
+    ];
+    return { level:level, rounds:battleRounds[level-1] };
+  }
+
+  function compareProfiles(previous, current){
+    if (!previous || !current) return null;
+    var skills = {};
+    Object.keys(SKILLS).forEach(function(key){
+      skills[key] = Math.round((current[key] ? current[key].score : 0) - (previous[key] ? previous[key].score : 0));
+    });
+    return {
+      overall: overallScore(current) - overallScore(previous),
+      skills: skills
+    };
+  }
+
   function overallScore(profile){
     var values = Object.keys(SKILLS).map(function(key){ return profile[key] ? profile[key].score : 0; });
     return values.length ? Math.round(values.reduce(function(a,b){ return a+b; },0) / values.length) : 0;
@@ -178,6 +225,9 @@
     buildProfile: buildProfile,
     weakestSkill: weakestSkill,
     recommendActivity: recommendActivity,
+    nextPracticeLevel: nextPracticeLevel,
+    gamePlan: gamePlan,
+    compareProfiles: compareProfiles,
     overallScore: overallScore,
     patternSummary: patternSummary,
     demoSessions: demoSessions

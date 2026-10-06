@@ -64,7 +64,7 @@
   document.getElementById('brandHome').addEventListener('click', function(){ setMode('home'); });
 
   function nav(current){
-    var items = [['overview','Overview'],['map','My Number Map'],['practice','Practice'],['dashboard','For parents and educators'],['research','Research']];
+    var items = [['overview','Overview'],['map','My Number Map'],['practice','Practice'],['dashboard','For parents and educators'],['research','Evidence & design']];
     return '<nav class="num-nav" aria-label="Numbers navigation">' + items.map(function(item){
       return '<button type="button" data-screen="'+item[0]+'" aria-current="'+(current===item[0]?'page':'false')+'">'+item[1]+'</button>';
     }).join('') + '</nav>';
@@ -86,6 +86,16 @@
 
   function latestSession(){ return store.checkSessions.length ? store.checkSessions[store.checkSessions.length-1] : null; }
   function latestProfile(){ var session = latestSession(); return session ? session.profile : null; }
+
+  function practicesSince(session){
+    if (!session) return [];
+    var start = new Date(session.date).getTime();
+    return store.practiceSessions.filter(function(item){ return new Date(item.date).getTime() > start; });
+  }
+
+  function signed(value){
+    return value > 0 ? '+'+value : String(value);
+  }
 
   function renderOverview(){
     var last = latestSession();
@@ -250,15 +260,18 @@
     ];
     var tiles = games.map(function(item){
       var recommended = rec && rec.id === item.id;
-      return '<article class="practice-tile '+(recommended?'recommended':'')+'">'+(recommended?'<span class="recommended-label">PICKED FOR YOU</span>':'')+'<div class="tile-icon">'+item.icon+'</div><h3>'+item.name+'</h3><p>'+item.copy+'</p><button class="num-button small" type="button" data-game="'+item.id+'">Play</button></article>';
+      var level = Domain.nextPracticeLevel(store.practiceSessions,item.id);
+      return '<article class="practice-tile '+(recommended?'recommended':'')+'">'+(recommended?'<span class="recommended-label">PICKED FOR YOU</span>':'')+'<div class="tile-icon">'+item.icon+'</div><h3>'+item.name+'</h3><p>'+item.copy+'</p><span class="level-note">Next: Level '+level+' of 3</span><button class="num-button small" type="button" data-game="'+item.id+'">Play</button></article>';
     }).join('');
     app.innerHTML = shell('<section class="num-panel"><div class="num-section-head"><div><h2>Practice activities</h2><p>'+(rec?'Recommended first: '+escapeHtml(rec.name)+'.':'Take a Number Check for a recommended starting activity, or choose any activity.')+'</p></div>'+(profile?'<button class="num-button secondary small" type="button" data-screen="map">See my map</button>':'<button class="num-button secondary small" type="button" data-action="start-check">Take the check</button>')+'</div><div class="practice-grid">'+tiles+'</div></section>', 'practice');
   }
 
   function startGame(id){
-    if (id === 'number-trail') game = {id:id,position:0,turns:0,complete:false,saved:false};
-    if (id === 'number-line') game = {id:id,index:0,score:0,rounds:[{target:4,min:0,max:10},{target:8,min:0,max:10},{target:13,min:0,max:20},{target:17,min:0,max:20},{target:36,min:0,max:50}],startedAt:performance.now(),complete:false,saved:false};
-    if (id === 'quantity-battle') game = {id:id,index:0,score:0,rounds:[{l:5,r:8,lr:'dots',rr:'dots'},{l:7,r:4,lr:'number',rr:'number'},{l:6,r:7,lr:'dots',rr:'number'},{l:9,r:8,lr:'number',rr:'dots'},{l:11,r:14,lr:'number',rr:'number'}],startedAt:performance.now(),complete:false,saved:false};
+    var level = Domain.nextPracticeLevel(store.practiceSessions,id);
+    var plan = Domain.gamePlan(id,level);
+    if (id === 'number-trail') game = {id:id,level:level,position:0,turns:0,goal:plan.goal,spinnerMax:plan.spinnerMax,complete:false,saved:false};
+    if (id === 'number-line') game = {id:id,level:level,index:0,score:0,rounds:plan.rounds,startedAt:performance.now(),complete:false,saved:false};
+    if (id === 'quantity-battle') game = {id:id,level:level,index:0,score:0,rounds:plan.rounds,startedAt:performance.now(),complete:false,saved:false};
     currentScreen = 'game';
     renderGame();
   }
@@ -272,21 +285,21 @@
   }
 
   function gameFrame(title,score,body){
-    app.innerHTML = shell('<section class="num-panel game-shell"><div class="game-top"><div><span class="num-kicker">PRACTICE</span><h2>'+title+'</h2></div><span class="game-score">'+score+'</span></div>'+body+'</section>', 'practice');
+    app.innerHTML = shell('<section class="num-panel game-shell"><div class="game-top"><div><span class="num-kicker">PRACTICE · LEVEL '+game.level+' OF 3</span><h2>'+title+'</h2></div><span class="game-score">'+score+'</span></div>'+body+'</section>', 'practice');
   }
 
   function renderTrail(){
     var cells = '';
-    for (var i=0;i<=10;i++) cells += '<div class="trail-step '+(i<game.position?'passed':i===game.position?'current':'')+'">'+(i===0?'GO':i)+'</div>';
-    gameFrame('Number Trail','Turn '+(game.turns+1),'<p style="color:var(--text-muted);font-size:13px">Spin, then count each space as your star moves. Reach 10 to finish the trail.</p><div class="trail">'+cells+'</div><div class="spinner" id="spinner">?</div><div class="num-actions" style="justify-content:center"><button class="num-button" data-action="spin" type="button">Spin & move</button><button class="num-button secondary" data-screen="practice" type="button">Leave game</button></div><p class="encouragement" id="gameFeedback" style="text-align:center"></p>');
+    for (var i=0;i<=game.goal;i++) cells += '<div class="trail-step '+(i<game.position?'passed':i===game.position?'current':'')+'">'+(i===0?'GO':i)+'</div>';
+    gameFrame('Number Trail','Turn '+(game.turns+1),'<p style="color:var(--text-muted);font-size:13px">Spin 1–'+game.spinnerMax+', then count each space as your star moves. Reach '+game.goal+' to finish.</p><div class="trail">'+cells+'</div><div class="spinner" id="spinner">?</div><div class="num-actions" style="justify-content:center"><button class="num-button" data-action="spin" type="button">Spin & move</button><button class="num-button secondary" data-screen="practice" type="button">Leave game</button></div><p class="encouragement" id="gameFeedback" style="text-align:center"></p>');
   }
 
   function spinTrail(){
     if (!game || game.id !== 'number-trail') return;
-    var roll = 1 + Math.floor(Math.random()*3);
+    var roll = 1 + Math.floor(Math.random()*game.spinnerMax);
     game.turns++;
-    game.position = Math.min(10,game.position+roll);
-    if (game.position >= 10){ game.score = Math.max(50,100-(game.turns-4)*5); game.complete=true; saveGame(); }
+    game.position = Math.min(game.goal,game.position+roll);
+    if (game.position >= game.goal){ game.score = 100; game.complete=true; saveGame(); }
     renderGame();
     var spinner = document.getElementById('spinner');
     if (spinner) spinner.textContent = roll;
@@ -332,7 +345,7 @@
     game.saved = true;
     var total = game.id === 'number-trail' ? 100 : game.rounds.length;
     var score = game.id === 'number-trail' ? game.score : Math.round(game.score/total*100);
-    store.practiceSessions.push({id:'practice-'+Date.now(),date:new Date().toISOString(),game:game.id,score:score});
+    store.practiceSessions.push({id:'practice-'+Date.now(),date:new Date().toISOString(),game:game.id,score:score,level:game.level});
     if (store.practiceSessions.length>60) store.practiceSessions=store.practiceSessions.slice(-60);
     persist();
   }
@@ -341,7 +354,8 @@
     var meta = Domain.GAME_META[game.id];
     var total = game.id === 'number-trail' ? 100 : game.rounds.length;
     var score = game.id === 'number-trail' ? game.score : Math.round(game.score/total*100);
-    app.innerHTML = shell('<section class="num-panel game-complete"><div class="celebrate">★</div><h2>Practice complete</h2><p>'+escapeHtml(meta.name)+' score: '+score+'%. The result is available under For parents and educators.</p><div class="num-actions" style="justify-content:center"><button class="num-button" data-game="'+game.id+'" type="button">Play again</button><button class="num-button secondary" data-screen="practice" type="button">Choose another activity</button></div></section>', 'practice');
+    var nextLevel = Domain.nextPracticeLevel(store.practiceSessions,game.id);
+    app.innerHTML = shell('<section class="num-panel game-complete"><div class="celebrate">★</div><h2>Practice complete</h2><p>'+escapeHtml(meta.name)+' · Level '+game.level+' · '+score+'%. Next round: Level '+nextLevel+'.</p><fieldset class="fit-check"><legend>How did that level feel?</legend><button type="button" data-fit="too-hard">Too hard</button><button type="button" data-fit="just-right">Just right</button><button type="button" data-fit="too-easy">Too easy</button></fieldset><p class="fit-status" id="fitStatus" aria-live="polite"></p><div class="num-actions" style="justify-content:center"><button class="num-button" data-game="'+game.id+'" type="button">Play again</button><button class="num-button secondary" data-screen="dashboard" type="button">View progress</button></div></section>', 'practice');
   }
 
   function renderDashboard(){
@@ -355,8 +369,63 @@
     var rec = Domain.recommendActivity(profile);
     var rows = Object.keys(Domain.SKILLS).map(function(key){ return '<div class="profile-row"><span>'+escapeHtml(profile[key].short)+'</span><div class="bar"><i style="width:'+profile[key].score+'%"></i></div><b>'+profile[key].score+'</b></div>'; }).join('');
     var history = store.checkSessions.slice(-5).reverse().map(function(s){ return '<div class="history-row"><div><strong>'+(s.demo?'Sample Number Check':'Number Check')+'</strong><span>'+new Date(s.date).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})+'</span></div><span class="history-score">'+Domain.overallScore(s.profile)+'</span></div>'; }).join('');
+    var practiceHistory = store.practiceSessions.slice(-5).reverse().map(function(item){
+      var meta = Domain.GAME_META[item.game];
+      return '<div class="history-row"><div><strong>'+escapeHtml(meta ? meta.name : item.game)+'</strong><span>Level '+(item.level || 1)+' · '+new Date(item.date).toLocaleDateString(undefined,{month:'short',day:'numeric'})+(item.fit?' · '+fitLabel(item.fit):'')+'</span></div><span class="history-score">'+item.score+'%</span></div>';
+    }).join('') || '<p class="empty-note">No practice sessions yet.</p>';
     var trend = renderTrend(store.checkSessions);
-    app.innerHTML = shell('<section class="num-panel"><div class="num-section-head"><div><span class="num-kicker">FOR PARENTS &amp; EDUCATORS</span><h2>Learner’s number sense</h2><p>Accuracy, timing, error patterns, and the reason behind the next activity.</p></div>'+(store.demo?'<span class="sample-pill">SAMPLE DATA</span>':'')+'</div><div class="dashboard-grid"><div class="dashboard-stack"><section><h3 style="font-size:14px">Latest skill map</h3>'+rows+'</section><section><h3 style="font-size:14px;margin-bottom:10px">Change across checks</h3>'+trend+'</section></div><div class="dashboard-stack"><article class="insight-card"><small>PATTERN OBSERVED</small><h3>'+escapeHtml(Domain.SKILLS[summary.strongest].short)+' is a relative strength.</h3><p>'+escapeHtml(summary.text)+'</p></article><article class="insight-card" style="background:var(--num-mint);color:#375b50"><small style="color:var(--num-teal-dark)">RECOMMENDED FOCUS</small><h3>'+escapeHtml(rec.skillLabel)+'</h3><p>'+escapeHtml(rec.reason)+'</p><button class="num-button small" data-game="'+rec.id+'" type="button" style="margin-top:14px">Open '+escapeHtml(rec.name)+'</button></article><section class="num-panel" style="padding:16px;box-shadow:none"><h3 style="font-size:13px">Recent checks</h3><div class="history-list">'+history+'</div></section></div></div></section>', 'dashboard');
+    var realChecks = store.checkSessions.filter(function(item){ return !item.demo; });
+    var comparison = realChecks.length > 1 ? Domain.compareProfiles(realChecks[realChecks.length-2].profile,profile) : null;
+    if (store.demo && store.checkSessions.length > 1) comparison = Domain.compareProfiles(store.checkSessions[store.checkSessions.length-2].profile,profile);
+    var comparisonCard = comparison ? '<section class="change-card"><div><span>Overall change</span><strong class="'+(comparison.overall>=0?'positive':'negative')+'">'+signed(comparison.overall)+'</strong></div>'+Object.keys(Domain.SKILLS).map(function(key){ var delta=comparison.skills[key]; return '<div><span>'+escapeHtml(Domain.SKILLS[key].short)+'</span><b class="'+(delta>=0?'positive':'negative')+'">'+signed(delta)+'</b></div>'; }).join('')+'</section>' : '<p class="empty-note">Take another Number Check after practice to compare each skill.</p>';
+    var since = practicesSince(session);
+    var nextStep = since.length ? 'You have completed '+since.length+' practice '+(since.length===1?'session':'sessions')+' since this check. Recheck when the learner is ready to compare skills.' : 'Complete the recommended activity, then return for another Number Check to compare skills.';
+    var metricDetails = Object.keys(Domain.SKILLS).map(function(key){
+      var item=profile[key];
+      var measure=key==='numberLine' ? (item.meanAbsoluteError || 0)+'% average line error' : item.accuracy+'% accuracy · '+formatSeconds(item.medianReactionTime)+' median response';
+      return '<div class="metric-row"><span>'+escapeHtml(item.short)+'</span><b>'+escapeHtml(measure)+'</b><small>'+item.trials+' trials · score '+item.score+'/100</small></div>';
+    }).join('');
+    app.innerHTML = shell('<section class="num-panel"><div class="num-section-head"><div><span class="num-kicker">FOR PARENTS &amp; EDUCATORS</span><h2>Learner’s number sense</h2><p>Results stay on this device unless you download or print them.</p></div><div class="report-actions">'+(store.demo?'<span class="sample-pill">SAMPLE DATA</span>':'')+'<button class="num-button secondary small" data-action="download-report" type="button">Download report</button><button class="num-button secondary small" data-action="print-report" type="button">Print</button></div></div><div class="dashboard-grid"><div class="dashboard-stack"><section><h3 class="dashboard-heading">Latest skill map</h3>'+rows+'</section><section><h3 class="dashboard-heading">Change since the previous check</h3>'+comparisonCard+'</section><section class="metric-panel"><div class="metric-head"><h3>How the scores were calculated</h3><button type="button" data-action="toggle-metrics" aria-expanded="false">Show details</button></div><div id="metricDetails" hidden>'+metricDetails+'<p class="method-note">Accuracy is weighted more than speed. Number-line scores use placement error relative to the displayed range. The lowest current skill selects the recommended activity.</p></div></section></div><div class="dashboard-stack"><article class="insight-card"><small>PATTERN OBSERVED</small><h3>'+escapeHtml(Domain.SKILLS[summary.strongest].short)+' is a relative strength.</h3><p>'+escapeHtml(summary.text)+'</p></article><article class="insight-card" style="background:var(--num-mint);color:#375b50"><small style="color:var(--num-teal-dark)">NEXT STEP</small><h3>'+escapeHtml(rec.name)+'</h3><p>'+escapeHtml(nextStep)+'</p><div class="inline-actions"><button class="num-button small" data-game="'+rec.id+'" type="button">Practice</button><button class="num-button secondary small" data-action="start-check" type="button">Recheck skills</button></div></article><section class="history-panel"><h3>Recent checks</h3><div class="history-list">'+history+'</div></section><section class="history-panel"><h3>Recent practice</h3><div class="history-list">'+practiceHistory+'</div></section></div></div></section>', 'dashboard');
+  }
+
+  function fitLabel(value){
+    return value === 'too-hard' ? 'felt too hard' : value === 'too-easy' ? 'felt too easy' : 'felt right';
+  }
+
+  function downloadReport(){
+    var session = latestSession();
+    if (!session) return;
+    var profile = session.profile;
+    var rec = Domain.recommendActivity(profile);
+    var rows = [['Second Look learner report'],['Date',new Date(session.date).toLocaleString()],['Overall score',Domain.overallScore(profile)],[],['Skill','Score','Accuracy','Median response (seconds)','Average number-line error']];
+    Object.keys(Domain.SKILLS).forEach(function(key){
+      var item=profile[key];
+      rows.push([item.label,item.score,item.accuracy == null ? '' : item.accuracy,item.medianReactionTime ? (item.medianReactionTime/1000).toFixed(1) : '',key==='numberLine' ? item.meanAbsoluteError+'%' : '']);
+    });
+    rows.push([],['Recommended activity',rec.name],['Recommended focus',rec.skillLabel],['Reason',rec.reason],[],['Practice date','Activity','Level','Score','Learner feedback']);
+    store.practiceSessions.forEach(function(item){ var meta=Domain.GAME_META[item.game]; rows.push([new Date(item.date).toLocaleString(),meta?meta.name:item.game,item.level||1,item.score+'%',item.fit?fitLabel(item.fit):'']); });
+    rows.push([],['Note','Second Look is a practice and progress tool. It does not provide a diagnosis.']);
+    var csv = rows.map(function(row){ return row.map(function(cell){ return '"'+String(cell == null ? '' : cell).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+    var url = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    var link = document.createElement('a');
+    link.href=url;
+    link.download='second-look-report-'+new Date(session.date).toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); },0);
+  }
+
+  function recordFit(value){
+    if (!game || !game.saved || !store.practiceSessions.length) return;
+    var latest = store.practiceSessions[store.practiceSessions.length-1];
+    if (latest.game !== game.id) return;
+    latest.fit = value;
+    persist();
+    var buttons = document.querySelectorAll('[data-fit]');
+    buttons.forEach(function(button){ button.setAttribute('aria-pressed',button.dataset.fit === value ? 'true' : 'false'); });
+    var status = document.getElementById('fitStatus');
+    if (status) status.textContent = 'Saved. The next round will use Level '+Domain.nextPracticeLevel(store.practiceSessions,game.id)+'.';
   }
 
   function renderTrend(sessions){
@@ -369,14 +438,14 @@
   }
 
   function renderResearch(){
-    app.innerHTML = shell('<section class="num-panel"><div class="num-section-head"><div><h2>Research behind the activities</h2></div></div><div class="research-grid"><article class="research-card"><span class="source-label">DOT ENUMERATION</span><h3>Quantity recognition</h3><p>Dot enumeration is used in research on numerical-processing efficiency and developmental dyscalculia.</p><a href="https://pubmed.ncbi.nlm.nih.gov/23898310/" target="_blank" rel="noopener">Read the study →</a></article><article class="research-card"><span class="source-label">SYMBOLIC MAGNITUDE</span><h3>Comparing written numbers</h3><p>A meta-analysis found slower symbolic magnitude-comparison responses among children with mathematical difficulties.</p><a href="https://pubmed.ncbi.nlm.nih.gov/28432933/" target="_blank" rel="noopener">Read the meta-analysis →</a></article><article class="research-card"><span class="source-label">LINEAR BOARD PLAY</span><h3>Number Trail</h3><p>Linear numerical board-game play improved magnitude comparison, number-line estimation, counting, and numeral identification in a randomized study.</p><a href="https://pubmed.ncbi.nlm.nih.gov/18366429/" target="_blank" rel="noopener">Read the study →</a></article><article class="research-card"><span class="source-label">SPATIAL NUMBER TRAINING</span><h3>Number Line Adventure</h3><p>A computer intervention improved spatial number representation and arithmetic performance in children with developmental dyscalculia.</p><a href="https://pubmed.ncbi.nlm.nih.gov/21295145/" target="_blank" rel="noopener">Read the study →</a></article></div><article class="legal-card" style="margin-top:16px"><h3>California SB 1067</h3><p>Beginning in the 2028–29 school year, California’s law calls for annual K–2 screening for early math difficulties. Second Look does not fulfill that screening requirement or diagnose dyscalculia. It provides practice based on performance in these activities. <a href="https://sd39.senate.ca.gov/sites/sd39.senate.ca.gov/files/pdf/SB%201067-%20Universal%20Math%20Screener%20Bill%20Factsheet%202.18%20Final%20.pdf" target="_blank" rel="noopener">View the bill fact sheet →</a></p></article></section>', 'research');
+    app.innerHTML = shell('<section class="num-panel"><div class="num-section-head"><div><span class="num-kicker">TRANSPARENT BY DESIGN</span><h2>How Second Look works</h2><p>The app uses explainable rules so families and educators can see what changes and why.</p></div></div><div class="system-flow"><article><b>1</b><h3>Measure</h3><p>Twelve short trials record accuracy, response time, and number-line placement error.</p></article><span aria-hidden="true">→</span><article><b>2</b><h3>Score</h3><p>Accuracy carries more weight than speed. Placement error is adjusted for the line’s range.</p></article><span aria-hidden="true">→</span><article><b>3</b><h3>Adapt</h3><p>The lowest skill selects an activity. Performance and learner feedback set its next level.</p></article><span aria-hidden="true">→</span><article><b>4</b><h3>Compare</h3><p>Later checks show change by skill. Data stays in this browser unless a report is exported.</p></article></div></section><section class="num-panel"><div class="num-section-head"><div><h2>Research behind the activities</h2></div></div><div class="research-grid"><article class="research-card"><span class="source-label">DOT ENUMERATION</span><h3>Quantity recognition</h3><p>Dot enumeration is used in research on numerical-processing efficiency and developmental dyscalculia.</p><a href="https://pubmed.ncbi.nlm.nih.gov/23898310/" target="_blank" rel="noopener">Read the study →</a></article><article class="research-card"><span class="source-label">SYMBOLIC MAGNITUDE</span><h3>Comparing written numbers</h3><p>A meta-analysis found slower symbolic magnitude-comparison responses among children with mathematical difficulties.</p><a href="https://pubmed.ncbi.nlm.nih.gov/28432933/" target="_blank" rel="noopener">Read the meta-analysis →</a></article><article class="research-card"><span class="source-label">LINEAR BOARD PLAY</span><h3>Number Trail</h3><p>Linear numerical board-game play improved magnitude comparison, number-line estimation, counting, and numeral identification in a randomized study.</p><a href="https://pubmed.ncbi.nlm.nih.gov/18366429/" target="_blank" rel="noopener">Read the study →</a></article><article class="research-card"><span class="source-label">SPATIAL NUMBER TRAINING</span><h3>Number Line Adventure</h3><p>A computer intervention improved spatial number representation and arithmetic performance in children with developmental dyscalculia.</p><a href="https://pubmed.ncbi.nlm.nih.gov/21295145/" target="_blank" rel="noopener">Read the study →</a></article></div><article class="legal-card" style="margin-top:16px"><h3>California SB 1067</h3><p>Beginning in the 2028–29 school year, California’s law calls for annual K–2 screening for early math difficulties. Second Look does not fulfill that screening requirement or diagnose dyscalculia. It provides practice based on performance in these activities. <a href="https://sd39.senate.ca.gov/sites/sd39.senate.ca.gov/files/pdf/SB%201067-%20Universal%20Math%20Screener%20Bill%20Factsheet%202.18%20Final%20.pdf" target="_blank" rel="noopener">View the bill fact sheet →</a></p></article></section>', 'research');
   }
 
   function loadDemo(){
     store.checkSessions = Domain.demoSessions();
     store.practiceSessions = [
-      {id:'demo-p1',date:new Date(Date.now()-16*86400000).toISOString(),game:'quantity-battle',score:60,demo:true},
-      {id:'demo-p2',date:new Date(Date.now()-6*86400000).toISOString(),game:'number-trail',score:78,demo:true}
+      {id:'demo-p1',date:new Date(Date.now()-16*86400000).toISOString(),game:'quantity-battle',score:60,level:1,fit:'just-right',demo:true},
+      {id:'demo-p2',date:new Date(Date.now()-6*86400000).toISOString(),game:'number-trail',score:84,level:1,fit:'too-easy',demo:true}
     ];
     store.demo = true;
     persist();
@@ -394,6 +463,9 @@
       else if (action.dataset.action === 'replay-dots') replayDots();
       else if (action.dataset.action === 'demo') loadDemo();
       else if (action.dataset.action === 'toggle-why'){ var box=document.getElementById('whyBox'); if(box) box.hidden=!box.hidden; }
+      else if (action.dataset.action === 'toggle-metrics'){ var details=document.getElementById('metricDetails'); if(details){ details.hidden=!details.hidden; action.setAttribute('aria-expanded',String(!details.hidden)); action.textContent=details.hidden?'Show details':'Hide details'; } }
+      else if (action.dataset.action === 'download-report') downloadReport();
+      else if (action.dataset.action === 'print-report') window.print();
       else if (action.dataset.action === 'spin') spinTrail();
       return;
     }
@@ -401,6 +473,8 @@
     if (answer){ answerTrial(answer.dataset.answer); return; }
     var gameButton = event.target.closest('[data-game]');
     if (gameButton){ startGame(gameButton.dataset.game); return; }
+    var fitButton = event.target.closest('[data-fit]');
+    if (fitButton){ recordFit(fitButton.dataset.fit); return; }
     var battle = event.target.closest('[data-game-answer]');
     if (battle){ answerBattle(battle.dataset.gameAnswer); return; }
     var line = event.target.closest('[data-number-line]');

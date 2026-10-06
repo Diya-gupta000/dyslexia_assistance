@@ -47,3 +47,27 @@ test('pattern summary names both a strength and a focus area', () => {
   assert.notEqual(summary.strongest, summary.focus);
   assert.match(summary.text, /practice will begin/i);
 });
+
+test('practice level adapts from the most recent result and learner feedback', () => {
+  assert.equal(Numbers.nextPracticeLevel([], 'number-line'), 1);
+  assert.equal(Numbers.nextPracticeLevel([{game:'number-line', level:1, score:84}], 'number-line'), 2);
+  assert.equal(Numbers.nextPracticeLevel([{game:'number-line', level:2, score:70, fit:'too-hard'}], 'number-line'), 1);
+  assert.equal(Numbers.nextPracticeLevel([{game:'number-line', level:2, score:100, fit:'too-hard'}], 'number-line'), 1);
+  assert.equal(Numbers.nextPracticeLevel([{game:'number-line', level:3, score:98}], 'number-line'), 3);
+});
+
+test('game plans increase the range and preserve five scored rounds', () => {
+  const first = Numbers.gamePlan('number-line', 1);
+  const third = Numbers.gamePlan('number-line', 3);
+  assert.equal(first.rounds.length, 5);
+  assert.equal(third.rounds.length, 5);
+  assert.ok(Math.max(...third.rounds.map(round => round.max)) > Math.max(...first.rounds.map(round => round.max)));
+  assert.deepEqual(Numbers.gamePlan('number-trail', 2), {level:2, goal:20, spinnerMax:4});
+});
+
+test('profile comparison reports overall and per-skill change', () => {
+  const sessions = Numbers.demoSessions();
+  const comparison = Numbers.compareProfiles(sessions[0].profile, sessions[2].profile);
+  assert.ok(comparison.overall > 0);
+  assert.ok(comparison.skills.mapping > 0);
+});
