@@ -9,7 +9,7 @@
   var modeButtons = Array.prototype.slice.call(document.querySelectorAll('[data-mode]'));
   var wordTabs = document.getElementById('wordTabs');
   var brandTagline = document.getElementById('brandTagline');
-  var currentScreen = 'overview';
+  var currentScreen = 'map';
   var check = null;
   var game = null;
   var dotTimer = null;
@@ -64,7 +64,7 @@
   document.getElementById('brandHome').addEventListener('click', function(){ setMode('home'); });
 
   function nav(current){
-    var items = [['overview','Overview'],['map','My Number Map'],['practice','Practice'],['dashboard','For parents and educators'],['research','Evidence & design']];
+    var items = [['map','My Number Map'],['practice','Practice'],['dashboard','For parents and educators'],['research','Evidence & design']];
     return '<nav class="num-nav" aria-label="Numbers navigation">' + items.map(function(item){
       return '<button type="button" data-screen="'+item[0]+'" aria-current="'+(current===item[0]?'page':'false')+'">'+item[1]+'</button>';
     }).join('') + '</nav>';
@@ -75,8 +75,7 @@
   }
 
   function renderNumbers(){
-    if (currentScreen === 'overview') renderOverview();
-    else if (currentScreen === 'check') renderCheck();
+    if (currentScreen === 'check') renderCheck();
     else if (currentScreen === 'map') renderMap();
     else if (currentScreen === 'practice') renderPractice();
     else if (currentScreen === 'dashboard') renderDashboard();
@@ -95,24 +94,6 @@
 
   function signed(value){
     return value > 0 ? '+'+value : String(value);
-  }
-
-  function renderOverview(){
-    var last = latestSession();
-    var practiceCount = store.practiceSessions.length;
-    app.innerHTML = shell(
-      '<section class="num-hero">' +
-        '<div class="num-hero-copy"><span class="num-kicker">NUMBER SENSE</span>' +
-          '<h2>Check foundational number skills.</h2>' +
-          '<div class="num-actions"><button class="num-button" type="button" data-action="start-check">'+(last?'Take another Number Check':'Start the 5-minute Number Check')+' <span>→</span></button>' +
-          (last?'<button class="num-button secondary" type="button" data-screen="map">View latest map</button>':'<button class="num-button secondary" type="button" data-action="demo">Explore a sample journey</button>')+'</div>' +
-          '<div class="mini-stats"><div class="mini-stat"><strong>'+store.checkSessions.length+'</strong><span>checks on this device</span></div><div class="mini-stat"><strong>'+practiceCount+'</strong><span>practice sessions</span></div><div class="mini-stat"><strong>4</strong><span>foundational skills</span></div></div>' +
-        '</div>' +
-        '<div class="hero-visual" aria-hidden="true"><div class="hero-blob"></div><div class="hero-number">7</div><div class="hero-dots"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>' +
-      '</section>' +
-      '<section class="num-panel" style="margin-top:18px"><div class="num-section-head"><div><h2>What the Number Check measures</h2></div></div>' +
-        '<div class="how-grid"><article class="how-card"><b>01</b><h3>Dot sense</h3><p>Notice small quantities without counting one by one.</p></article><article class="how-card"><b>02</b><h3>Number size</h3><p>Compare what written numerals represent.</p></article><article class="how-card"><b>03</b><h3>Dots & digits</h3><p>Connect visual quantities to symbols.</p></article><article class="how-card"><b>04</b><h3>Number line</h3><p>Place numbers within a spatial range.</p></article></div>' +
-      '</section>', 'overview');
   }
 
   function createTrials(){
@@ -141,7 +122,7 @@
   function renderCheck(){
     if (!check){ startCheck(); return; }
     if (check.intro){
-      app.innerHTML = shell('<section class="num-panel check-shell check-card"><span class="task-badge">Number Check</span><h2 style="margin-top:14px">Before you begin</h2><p>The learner will count dots, compare numbers, match quantities to numerals, and place numbers on a line. Let them answer independently. Accuracy and response time are stored on this device.</p><div class="num-actions"><button class="num-button" data-action="begin-trials" type="button">Begin <span>→</span></button><button class="num-button secondary" data-screen="overview" type="button">Back</button></div></section>', 'overview');
+      app.innerHTML = shell('<section class="num-panel check-shell check-card"><span class="task-badge">Number Check</span><h2 style="margin-top:14px">Before you begin</h2><p>The learner will count dots, compare numbers, match quantities to numerals, and place numbers on a line. Let them answer independently. Accuracy and response time are stored on this device.</p><div class="num-actions"><button class="num-button" data-action="begin-trials" type="button">Begin <span>→</span></button><button class="num-button secondary" data-screen="map" type="button">Back</button></div></section>', 'map');
       return;
     }
     if (check.index >= check.trials.length){ finishCheck(); return; }
@@ -149,7 +130,7 @@
     var progress = Math.round(check.index / check.trials.length * 100);
     var numberInTask = check.trials.slice(0,check.index+1).filter(function(t){ return t.skill === trial.skill; }).length;
     var content = '<section class="num-panel check-shell"><div class="check-top"><span>'+Domain.SKILLS[trial.skill].short+' · '+numberInTask+' of 3</span><span>'+ (check.index+1)+' / '+check.trials.length+'</span></div><div class="check-progress"><i style="width:'+progress+'%"></i></div><div class="check-card">'+renderTrial(trial)+'<div class="encouragement" id="checkFeedback" aria-live="polite"></div></div></section>';
-    app.innerHTML = shell(content, 'overview');
+    app.innerHTML = shell(content, 'map');
     check.startedAt = performance.now();
     if (trial.skill === 'dot') armDotFlash();
   }
@@ -168,7 +149,7 @@
       return '<span class="task-badge">Number duel</span><h2 style="margin-top:12px">Tap the bigger number.</h2><p>Which numeral represents more?</p><div class="duel-row"><button class="choice-card wide" type="button" data-answer="'+trial.left+'">'+trial.left+'</button><span class="duel-vs">OR</span><button class="choice-card wide" type="button" data-answer="'+trial.right+'">'+trial.right+'</button></div>';
     }
     if (trial.skill === 'mapping'){
-      return '<span class="task-badge">Dots vs. digits</span><h2 style="margin-top:12px">Which side shows more?</h2><p>Connect the amount you see with the number you read.</p><div class="duel-row"><button class="choice-card wide" type="button" data-answer="dots">'+dots(trial.dots,true)+'<span class="choice-label">DOTS</span></button><span class="duel-vs">OR</span><button class="choice-card wide" type="button" data-answer="numeral">'+trial.numeral+'<span class="choice-label">NUMERAL</span></button></div>';
+      return '<span class="task-badge">Compare quantities</span><h2 style="margin-top:12px">Which amount is greater?</h2><p>Count the dots on the left. Compare that amount with the number on the right. Tap the greater amount.</p><div class="duel-row"><button class="choice-card wide" type="button" data-answer="dots">'+dots(trial.dots,true)+'<span class="choice-label">DOT GROUP</span></button><span class="duel-vs">OR</span><button class="choice-card wide" type="button" data-answer="numeral"><span class="representation-value">'+trial.numeral+'</span><span class="choice-label">NUMBER '+trial.numeral+'</span></button></div>';
     }
     return '<span class="task-badge">Number line rescue</span><h2 style="margin-top:12px">Where does '+trial.target+' live?</h2><p>Tap the place on the line that feels right.</p><div class="number-line-wrap"><button type="button" class="number-track" data-number-line data-min="'+trial.min+'" data-max="'+trial.max+'" aria-label="Place '+trial.target+' on a number line from '+trial.min+' to '+trial.max+'"></button></div>';
   }
@@ -254,7 +235,7 @@
     var profile = latestProfile();
     var rec = profile ? Domain.recommendActivity(profile) : null;
     var games = [
-      {id:'number-trail',icon:'1→10',name:'Number Trail',copy:'Spin, move, and count along a linear board. Builds the link between numerals, order, and distance.'},
+      {id:'number-trail',icon:'1→10',name:'Number Trail',copy:'Spin, solve the addition, and choose where the star lands. Builds counting, number order, and mental addition.'},
       {id:'number-line',icon:'0—10',name:'Number Line Adventure',copy:'Help each number find its place. The range grows as placement becomes more accurate.'},
       {id:'quantity-battle',icon:'● vs 7',name:'Quantity Battle',copy:'Compare dots, digits, and mixed pairs to strengthen quantity–symbol connections.'}
     ];
@@ -269,7 +250,7 @@
   function startGame(id){
     var level = Domain.nextPracticeLevel(store.practiceSessions,id);
     var plan = Domain.gamePlan(id,level);
-    if (id === 'number-trail') game = {id:id,level:level,position:0,turns:0,goal:plan.goal,spinnerMax:plan.spinnerMax,complete:false,saved:false};
+    if (id === 'number-trail') game = {id:id,level:level,position:0,turns:0,correct:0,attempts:0,goal:plan.goal,spinnerMax:plan.spinnerMax,question:null,feedback:'',complete:false,saved:false};
     if (id === 'number-line') game = {id:id,level:level,index:0,score:0,rounds:plan.rounds,startedAt:performance.now(),complete:false,saved:false};
     if (id === 'quantity-battle') game = {id:id,level:level,index:0,score:0,rounds:plan.rounds,startedAt:performance.now(),complete:false,saved:false};
     currentScreen = 'game';
@@ -291,18 +272,40 @@
   function renderTrail(){
     var cells = '';
     for (var i=0;i<=game.goal;i++) cells += '<div class="trail-step '+(i<game.position?'passed':i===game.position?'current':'')+'">'+(i===0?'GO':i)+'</div>';
-    gameFrame('Number Trail','Turn '+(game.turns+1),'<p style="color:var(--text-muted);font-size:13px">Spin 1–'+game.spinnerMax+', then count each space as your star moves. Reach '+game.goal+' to finish.</p><div class="trail">'+cells+'</div><div class="spinner" id="spinner">?</div><div class="num-actions" style="justify-content:center"><button class="num-button" data-action="spin" type="button">Spin & move</button><button class="num-button secondary" data-screen="practice" type="button">Leave game</button></div><p class="encouragement" id="gameFeedback" style="text-align:center"></p>');
+    var task = game.question ? '<div class="trail-equation" aria-label="'+game.question.position+' plus '+game.question.roll+' equals what"><span>'+game.question.position+'</span><b>+</b><span>'+game.question.roll+'</span><b>=</b><span>?</span></div><h3 class="trail-prompt">Where will the star land?</h3><div class="choice-row">'+game.question.choices.map(function(value){ return '<button class="choice-card trail-choice" type="button" data-trail-answer="'+value+'">'+value+'</button>'; }).join('')+'</div>' : '<p class="trail-ready">Spin to get the next addition problem.</p>';
+    var controls = game.question ? '' : '<button class="num-button" data-action="spin" type="button">Spin</button>';
+    gameFrame('Number Trail',game.turns+' solved','<p style="color:var(--text-muted);font-size:13px">Solve each move before the star advances. Reach '+game.goal+' to finish the trail.</p><div class="trail">'+cells+'</div><div class="spinner" id="spinner">'+(game.question?game.question.roll:'?')+'</div>'+task+'<p class="encouragement" id="gameFeedback" style="text-align:center">'+escapeHtml(game.feedback || '')+'</p><div class="num-actions" style="justify-content:center">'+controls+'<button class="num-button secondary" data-screen="practice" type="button">Leave game</button></div>');
   }
 
   function spinTrail(){
     if (!game || game.id !== 'number-trail') return;
-    var roll = 1 + Math.floor(Math.random()*game.spinnerMax);
-    game.turns++;
-    game.position = Math.min(game.goal,game.position+roll);
-    if (game.position >= game.goal){ game.score = 100; game.complete=true; saveGame(); }
+    var maxRoll = Math.min(game.spinnerMax,game.goal-game.position);
+    var roll = 1 + Math.floor(Math.random()*maxRoll);
+    game.question = Domain.trailQuestion(game.position,roll,game.goal);
+    game.feedback = '';
     renderGame();
-    var spinner = document.getElementById('spinner');
-    if (spinner) spinner.textContent = roll;
+  }
+
+  function answerTrail(value){
+    if (!game || game.id !== 'number-trail' || !game.question) return;
+    var question = game.question;
+    game.attempts++;
+    if (Number(value) !== question.answer){
+      game.feedback = 'Not yet. Start at '+question.position+' and count forward '+question.roll+' spaces.';
+      renderGame();
+      return;
+    }
+    game.correct++;
+    game.turns++;
+    game.position = question.answer;
+    game.feedback = 'Correct: '+question.position+' + '+question.roll+' = '+question.answer+'.';
+    game.question = null;
+    if (game.position >= game.goal){
+      game.score = Math.round(game.correct / Math.max(1,game.attempts) * 100);
+      game.complete = true;
+      saveGame();
+    }
+    renderGame();
   }
 
   function renderLineGame(){
@@ -322,12 +325,12 @@
   }
 
   function representation(value,type){
-    return type === 'dots' ? dots(value,true) : '<span>'+value+'</span>';
+    return type === 'dots' ? dots(value,true)+'<span class="choice-label">DOT GROUP</span>' : '<span class="representation-value">'+value+'</span><span class="choice-label">NUMBER '+value+'</span>';
   }
 
   function renderBattle(){
     var round = game.rounds[game.index];
-    gameFrame('Quantity Battle',(game.index+1)+' of '+game.rounds.length,'<div class="check-card" style="min-height:350px"><span class="task-badge">Choose more</span><h2 style="margin-top:12px">Which card wins?</h2><p>Tap the side that represents the larger amount.</p><div class="duel-row"><button class="choice-card wide" data-game-answer="left" type="button">'+representation(round.l,round.lr)+'</button><span class="duel-vs">VS</span><button class="choice-card wide" data-game-answer="right" type="button">'+representation(round.r,round.rr)+'</button></div><p class="encouragement" id="gameFeedback"></p></div>');
+    gameFrame('Quantity Battle',(game.index+1)+' of '+game.rounds.length,'<div class="check-card" style="min-height:350px"><span class="task-badge">Compare quantities</span><h2 style="margin-top:12px">Which amount is greater?</h2><p>Count the dots if you need to. Tap the card with the greater amount.</p><div class="duel-row"><button class="choice-card wide" data-game-answer="left" type="button">'+representation(round.l,round.lr)+'</button><span class="duel-vs">OR</span><button class="choice-card wide" data-game-answer="right" type="button">'+representation(round.r,round.rr)+'</button></div><p class="encouragement" id="gameFeedback"></p></div>');
     game.startedAt = performance.now();
   }
 
@@ -475,6 +478,8 @@
     if (gameButton){ startGame(gameButton.dataset.game); return; }
     var fitButton = event.target.closest('[data-fit]');
     if (fitButton){ recordFit(fitButton.dataset.fit); return; }
+    var trailAnswer = event.target.closest('[data-trail-answer]');
+    if (trailAnswer){ answerTrail(trailAnswer.dataset.trailAnswer); return; }
     var battle = event.target.closest('[data-game-answer]');
     if (battle){ answerBattle(battle.dataset.gameAnswer); return; }
     var line = event.target.closest('[data-number-line]');
