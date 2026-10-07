@@ -254,7 +254,7 @@
     var profile = latestProfile();
     var rec = profile ? Domain.recommendActivity(profile) : null;
     var games = [
-      {id:'number-trail',icon:'1→10',name:'Number Trail',copy:'Spin, move, and count along a linear board. Builds the link between numerals, order, and distance.'},
+      {id:'number-trail',icon:'1→10',name:'Number Trail',copy:'Spin, solve the addition, and choose where the star lands. Builds counting, number order, and mental addition.'},
       {id:'number-line',icon:'0—10',name:'Number Line Adventure',copy:'Help each number find its place. The range grows as placement becomes more accurate.'},
       {id:'quantity-battle',icon:'● vs 7',name:'Quantity Battle',copy:'Compare dots, digits, and mixed pairs to strengthen quantity–symbol connections.'}
     ];
@@ -269,7 +269,7 @@
   function startGame(id){
     var level = Domain.nextPracticeLevel(store.practiceSessions,id);
     var plan = Domain.gamePlan(id,level);
-    if (id === 'number-trail') game = {id:id,level:level,position:0,turns:0,goal:plan.goal,spinnerMax:plan.spinnerMax,complete:false,saved:false};
+    if (id === 'number-trail') game = {id:id,level:level,position:0,turns:0,correct:0,attempts:0,goal:plan.goal,spinnerMax:plan.spinnerMax,question:null,feedback:'',complete:false,saved:false};
     if (id === 'number-line') game = {id:id,level:level,index:0,score:0,rounds:plan.rounds,startedAt:performance.now(),complete:false,saved:false};
     if (id === 'quantity-battle') game = {id:id,level:level,index:0,score:0,rounds:plan.rounds,startedAt:performance.now(),complete:false,saved:false};
     currentScreen = 'game';
@@ -291,18 +291,40 @@
   function renderTrail(){
     var cells = '';
     for (var i=0;i<=game.goal;i++) cells += '<div class="trail-step '+(i<game.position?'passed':i===game.position?'current':'')+'">'+(i===0?'GO':i)+'</div>';
-    gameFrame('Number Trail','Turn '+(game.turns+1),'<p style="color:var(--text-muted);font-size:13px">Spin 1–'+game.spinnerMax+', then count each space as your star moves. Reach '+game.goal+' to finish.</p><div class="trail">'+cells+'</div><div class="spinner" id="spinner">?</div><div class="num-actions" style="justify-content:center"><button class="num-button" data-action="spin" type="button">Spin & move</button><button class="num-button secondary" data-screen="practice" type="button">Leave game</button></div><p class="encouragement" id="gameFeedback" style="text-align:center"></p>');
+    var task = game.question ? '<div class="trail-equation" aria-label="'+game.question.position+' plus '+game.question.roll+' equals what"><span>'+game.question.position+'</span><b>+</b><span>'+game.question.roll+'</span><b>=</b><span>?</span></div><h3 class="trail-prompt">Where will the star land?</h3><div class="choice-row">'+game.question.choices.map(function(value){ return '<button class="choice-card trail-choice" type="button" data-trail-answer="'+value+'">'+value+'</button>'; }).join('')+'</div>' : '<p class="trail-ready">Spin to get the next addition problem.</p>';
+    var controls = game.question ? '' : '<button class="num-button" data-action="spin" type="button">Spin</button>';
+    gameFrame('Number Trail',game.turns+' solved','<p style="color:var(--text-muted);font-size:13px">Solve each move before the star advances. Reach '+game.goal+' to finish the trail.</p><div class="trail">'+cells+'</div><div class="spinner" id="spinner">'+(game.question?game.question.roll:'?')+'</div>'+task+'<p class="encouragement" id="gameFeedback" style="text-align:center">'+escapeHtml(game.feedback || '')+'</p><div class="num-actions" style="justify-content:center">'+controls+'<button class="num-button secondary" data-screen="practice" type="button">Leave game</button></div>');
   }
 
   function spinTrail(){
     if (!game || game.id !== 'number-trail') return;
-    var roll = 1 + Math.floor(Math.random()*game.spinnerMax);
-    game.turns++;
-    game.position = Math.min(game.goal,game.position+roll);
-    if (game.position >= game.goal){ game.score = 100; game.complete=true; saveGame(); }
+    var maxRoll = Math.min(game.spinnerMax,game.goal-game.position);
+    var roll = 1 + Math.floor(Math.random()*maxRoll);
+    game.question = Domain.trailQuestion(game.position,roll,game.goal);
+    game.feedback = '';
     renderGame();
-    var spinner = document.getElementById('spinner');
-    if (spinner) spinner.textContent = roll;
+  }
+
+  function answerTrail(value){
+    if (!game || game.id !== 'number-trail' || !game.question) return;
+    var question = game.question;
+    game.attempts++;
+    if (Number(value) !== question.answer){
+      game.feedback = 'Not yet. Start at '+question.position+' and count forward '+question.roll+' spaces.';
+      renderGame();
+      return;
+    }
+    game.correct++;
+    game.turns++;
+    game.position = question.answer;
+    game.feedback = 'Correct: '+question.position+' + '+question.roll+' = '+question.answer+'.';
+    game.question = null;
+    if (game.position >= game.goal){
+      game.score = Math.round(game.correct / Math.max(1,game.attempts) * 100);
+      game.complete = true;
+      saveGame();
+    }
+    renderGame();
   }
 
   function renderLineGame(){
@@ -475,6 +497,8 @@
     if (gameButton){ startGame(gameButton.dataset.game); return; }
     var fitButton = event.target.closest('[data-fit]');
     if (fitButton){ recordFit(fitButton.dataset.fit); return; }
+    var trailAnswer = event.target.closest('[data-trail-answer]');
+    if (trailAnswer){ answerTrail(trailAnswer.dataset.trailAnswer); return; }
     var battle = event.target.closest('[data-game-answer]');
     if (battle){ answerBattle(battle.dataset.gameAnswer); return; }
     var line = event.target.closest('[data-number-line]');

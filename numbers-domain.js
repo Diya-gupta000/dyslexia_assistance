@@ -163,6 +163,26 @@
     return { level:level, rounds:battleRounds[level-1] };
   }
 
+  function trailQuestion(position, roll, goal){
+    goal = Math.max(1, Number(goal) || 10);
+    position = clamp(Number(position) || 0, 0, goal);
+    roll = Math.max(1, Number(roll) || 1);
+    if (position < goal) roll = Math.min(roll, goal - position);
+    var answer = position + roll;
+    var candidates = [answer, answer - 1, answer + 1, answer - 2, answer + 2];
+    var choices = [];
+    candidates.forEach(function(value){
+      value = clamp(value, 0, goal);
+      if (choices.indexOf(value) === -1 && choices.length < 3) choices.push(value);
+    });
+    for (var value=0; choices.length<3 && value<=goal; value++){
+      if (choices.indexOf(value) === -1) choices.push(value);
+    }
+    var shift = answer % choices.length;
+    choices = choices.slice(shift).concat(choices.slice(0,shift));
+    return { position:position, roll:roll, answer:answer, choices:choices };
+  }
+
   function compareProfiles(previous, current){
     if (!previous || !current) return null;
     var skills = {};
@@ -227,6 +247,7 @@
     recommendActivity: recommendActivity,
     nextPracticeLevel: nextPracticeLevel,
     gamePlan: gamePlan,
+    trailQuestion: trailQuestion,
     compareProfiles: compareProfiles,
     overallScore: overallScore,
     patternSummary: patternSummary,

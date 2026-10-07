@@ -65,6 +65,17 @@ test('game plans increase the range and preserve five scored rounds', () => {
   assert.deepEqual(Numbers.gamePlan('number-trail', 2), {level:2, goal:20, spinnerMax:4});
 });
 
+test('number trail asks the learner to calculate a valid landing space', () => {
+  const question = Numbers.trailQuestion(4, 3, 10);
+  assert.equal(question.answer, 7);
+  assert.equal(question.choices.length, 3);
+  assert.ok(question.choices.includes(7));
+  assert.equal(new Set(question.choices).size, 3);
+  const finalMove = Numbers.trailQuestion(9, 3, 10);
+  assert.equal(finalMove.roll, 1);
+  assert.equal(finalMove.answer, 10);
+});
+
 test('profile comparison reports overall and per-skill change', () => {
   const sessions = Numbers.demoSessions();
   const comparison = Numbers.compareProfiles(sessions[0].profile, sessions[2].profile);
