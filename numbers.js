@@ -9,7 +9,7 @@
   var modeButtons = Array.prototype.slice.call(document.querySelectorAll('[data-mode]'));
   var wordTabs = document.getElementById('wordTabs');
   var brandTagline = document.getElementById('brandTagline');
-  var currentScreen = 'overview';
+  var currentScreen = 'map';
   var check = null;
   var game = null;
   var dotTimer = null;
@@ -64,7 +64,7 @@
   document.getElementById('brandHome').addEventListener('click', function(){ setMode('home'); });
 
   function nav(current){
-    var items = [['overview','Overview'],['map','My Number Map'],['practice','Practice'],['dashboard','For parents and educators'],['research','Evidence & design']];
+    var items = [['map','My Number Map'],['practice','Practice'],['dashboard','For parents and educators'],['research','Evidence & design']];
     return '<nav class="num-nav" aria-label="Numbers navigation">' + items.map(function(item){
       return '<button type="button" data-screen="'+item[0]+'" aria-current="'+(current===item[0]?'page':'false')+'">'+item[1]+'</button>';
     }).join('') + '</nav>';
@@ -75,8 +75,7 @@
   }
 
   function renderNumbers(){
-    if (currentScreen === 'overview') renderOverview();
-    else if (currentScreen === 'check') renderCheck();
+    if (currentScreen === 'check') renderCheck();
     else if (currentScreen === 'map') renderMap();
     else if (currentScreen === 'practice') renderPractice();
     else if (currentScreen === 'dashboard') renderDashboard();
@@ -95,24 +94,6 @@
 
   function signed(value){
     return value > 0 ? '+'+value : String(value);
-  }
-
-  function renderOverview(){
-    var last = latestSession();
-    var practiceCount = store.practiceSessions.length;
-    app.innerHTML = shell(
-      '<section class="num-hero">' +
-        '<div class="num-hero-copy"><span class="num-kicker">NUMBER SENSE</span>' +
-          '<h2>Check foundational number skills.</h2>' +
-          '<div class="num-actions"><button class="num-button" type="button" data-action="start-check">'+(last?'Take another Number Check':'Start the 5-minute Number Check')+' <span>→</span></button>' +
-          (last?'<button class="num-button secondary" type="button" data-screen="map">View latest map</button>':'<button class="num-button secondary" type="button" data-action="demo">Explore a sample journey</button>')+'</div>' +
-          '<div class="mini-stats"><div class="mini-stat"><strong>'+store.checkSessions.length+'</strong><span>checks on this device</span></div><div class="mini-stat"><strong>'+practiceCount+'</strong><span>practice sessions</span></div><div class="mini-stat"><strong>4</strong><span>foundational skills</span></div></div>' +
-        '</div>' +
-        '<div class="hero-visual" aria-hidden="true"><div class="hero-blob"></div><div class="hero-number">7</div><div class="hero-dots"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>' +
-      '</section>' +
-      '<section class="num-panel" style="margin-top:18px"><div class="num-section-head"><div><h2>What the Number Check measures</h2></div></div>' +
-        '<div class="how-grid"><article class="how-card"><b>01</b><h3>Dot sense</h3><p>Notice small quantities without counting one by one.</p></article><article class="how-card"><b>02</b><h3>Number size</h3><p>Compare what written numerals represent.</p></article><article class="how-card"><b>03</b><h3>Dots & digits</h3><p>Connect visual quantities to symbols.</p></article><article class="how-card"><b>04</b><h3>Number line</h3><p>Place numbers within a spatial range.</p></article></div>' +
-      '</section>', 'overview');
   }
 
   function createTrials(){
@@ -141,7 +122,7 @@
   function renderCheck(){
     if (!check){ startCheck(); return; }
     if (check.intro){
-      app.innerHTML = shell('<section class="num-panel check-shell check-card"><span class="task-badge">Number Check</span><h2 style="margin-top:14px">Before you begin</h2><p>The learner will count dots, compare numbers, match quantities to numerals, and place numbers on a line. Let them answer independently. Accuracy and response time are stored on this device.</p><div class="num-actions"><button class="num-button" data-action="begin-trials" type="button">Begin <span>→</span></button><button class="num-button secondary" data-screen="overview" type="button">Back</button></div></section>', 'overview');
+      app.innerHTML = shell('<section class="num-panel check-shell check-card"><span class="task-badge">Number Check</span><h2 style="margin-top:14px">Before you begin</h2><p>The learner will count dots, compare numbers, match quantities to numerals, and place numbers on a line. Let them answer independently. Accuracy and response time are stored on this device.</p><div class="num-actions"><button class="num-button" data-action="begin-trials" type="button">Begin <span>→</span></button><button class="num-button secondary" data-screen="map" type="button">Back</button></div></section>', 'map');
       return;
     }
     if (check.index >= check.trials.length){ finishCheck(); return; }
@@ -149,7 +130,7 @@
     var progress = Math.round(check.index / check.trials.length * 100);
     var numberInTask = check.trials.slice(0,check.index+1).filter(function(t){ return t.skill === trial.skill; }).length;
     var content = '<section class="num-panel check-shell"><div class="check-top"><span>'+Domain.SKILLS[trial.skill].short+' · '+numberInTask+' of 3</span><span>'+ (check.index+1)+' / '+check.trials.length+'</span></div><div class="check-progress"><i style="width:'+progress+'%"></i></div><div class="check-card">'+renderTrial(trial)+'<div class="encouragement" id="checkFeedback" aria-live="polite"></div></div></section>';
-    app.innerHTML = shell(content, 'overview');
+    app.innerHTML = shell(content, 'map');
     check.startedAt = performance.now();
     if (trial.skill === 'dot') armDotFlash();
   }
